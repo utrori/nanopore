@@ -73,6 +73,77 @@ def split_sequence(sequence, split_length):
     """
     return [sequence[i:i + split_length] for i in range(0, len(sequence), split_length)]
 
+
+def make_temp_full_fastq(header, seq, quality, identifier,
+                    temp_file_prefix="temp_fastq"):
+    """Creates a temporary FASTQ file by splitting a read into smaller chunks.
+
+    Args:
+        header (str): The FASTQ header (without the leading '@').
+        read (str): The read sequence.
+        quality (str): The quality string.
+        identifier (str, float): A unique identifier for the read (can be a number).
+        split_length (int): The length to split the read into.
+        temp_file_prefix (str): Prefix for the temporary file name.
+    """
+    
+    temp_file_path = TEMP_DIR / f"{temp_file_prefix}_{identifier}.fastq"
+
+    with open(temp_file_path, 'w') as fw:
+        fw.write(f"@{header}\n{seq}\n+\n{quality}\n")
+
+def minimap2_mapping(in_fastq, out_sam, ref_path):
+    """Performs minimap2 mapping of reads in a FASTQ file to a reference genome.
+
+    Args:
+        in_fastq (Path or str): Path to the input FASTQ file.
+        out_sam (Path or str): Path to the output SAM file.
+        ref_path (Path or str): Path to the reference genome FASTA file.
+    """
+    # Convert paths to strings for subprocess if they are Path objects
+    in_fastq_str = str(in_fastq)
+    out_sam_str = str(out_sam)
+    ref_path_str = str(ref_path)
+
+    command = ["minimap2", "-ax", "map-ont", "-t", "16", ref_path_str, in_fastq_str]
+    
+    with open(out_sam_str, "w") as outfile:
+        subprocess.run(command, stdout=outfile, stderr=subprocess.DEVNULL, check=True)
+
+def minimap_mapping_and_sam_analysis(header, read, quality, ref_path):
+    """Maps a read using minimap2 and parses the SAM output.
+
+    Args:
+        header (str): The FASTQ header.
+        read (str): The read sequence.
+        quality (str): The quality string.
+        ref_path (Path or str): Path to the reference genome FASTA file.
+
+    Returns:
+        Tuple: A tuple containing the mapped regions and the CIGAR strings.
+    """
+    identifier = random.random()
+    
+    # Use Path objects for file operations
+    temp_fastq_path = TEMP_DIR / f"temp_fastq_{identifier}.fastq"
+    temp_sam_path = TEMP_DIR / f"single_split_mapped_{identifier}.sam"
+    
+    make_temp_full_fastq(header, read, quality, identifier, temp_file_prefix="temp_fastq")
+    minimap2_mapping(temp_fastq_path, temp_sam_path, ref_path)
+
+    mapped_regions = []
+    cigar_converted = []
+    with pysam.AlignmentFile(temp_sam_path, 'r') as samfile:
+        for alignment in samfile:
+            mapped_regions.append((alignment.reference_start, alignment.reference_end))
+            cigar_converted.append(alignment.cigarstring)
+
+    # Clean up temporary files
+    temp_fastq_path.unlink()
+    temp_sam_path.unlink()
+
+    return mapped_regions, cigar_converted
+
 def make_temp_fastq(header, read, quality, identifier, split_length,
                     temp_file_prefix="temp_fastq"):
     """Creates a temporary FASTQ file by splitting a read into smaller chunks.
@@ -117,7 +188,7 @@ def bwa_mapping(ref_path, in_fastq, out_sam, multi=False):
     with open(out_sam_str, "w") as outfile:
         subprocess.run(command, stdout=outfile, stderr=subprocess.DEVNULL, check=True)
 
-def split_mapping_and_sam_analysis(split_length, header, read, quality, ref_path):
+def split_mapping_and_sam_analysis(split_length: int, header: str, read: str, quality: str, ref_path):
     """Splits a read, maps it using BWA, and parses the SAM output.
 
     Args:
@@ -153,6 +224,7 @@ def split_mapping_and_sam_analysis(split_length, header, read, quality, ref_path
                 alignment.get_tag('AS'),
                 alignment.query_length
             ])
+            # the structure of sam_info is [flag, direction, position, CIGAR, AS score, read_length]
 
     # Clean up temporary files
     temp_fastq_path.unlink()
@@ -183,7 +255,7 @@ def make_shifted_ref(ref_filepath, new_ref_filepath, shift):
         for i in range(0, len(shifted_sequence), 70):
             outfile.write(shifted_sequence[i:i + 70] + "\n")
 
-def plot_read_structure(header, split_length, samdata, mouse=False, offset=0, savename=None, title=None):
+def get_read_structure(header, split_length, samdata, mouse=False, offset=0, savename=None, title=None):
     """Plots the structure of a read based on its split-mapped SAM data.
 
     Args:

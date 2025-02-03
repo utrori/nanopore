@@ -1,0 +1,23 @@
+# Temporary files
+temp_files/
+*.tmp
+*.temp
+
+# Python cache/build files
+__pycache__/
+*.pyc
+*.pyo
+*.so
+
+# Virtual environment
+.venv/
+venv/
+
+# OS-specific files
+.DS_Store
+
+# Large data files (if any)
+data/*.csv # Example: ignore all CSV files in a data directory
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints
