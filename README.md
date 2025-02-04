@@ -1,1 +1,2 @@
-Scripts to analyze ONT data.
+# nanopore
+Oxford Nanopore seq data analysis (mainly rDNA)
