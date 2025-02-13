@@ -17,6 +17,9 @@ import shutil
 from Bio.Seq import Seq
 from cigar import Cigar
 
+
+# Obsolete don't use! Just for reference.
+
 FNULL = open(os.devnull, 'w')
 
 

@@ -6,6 +6,7 @@ import config
 
 @dataclass
 class SplitAnalyzedRead:
+    ref: str
     read_id: str
     methylation_data: list
     ave_quality: float
@@ -38,6 +39,7 @@ class ReadAnalyzer:
         ave_quality = np.mean(self.loadeddata['quality_scores'])
         length = len(self.loadeddata['sequence'])
         self.analyzed_read = SplitAnalyzedRead(
+            ref = self.ref,
             read_id=self.loadeddata['read_id'],
             methylation_data=methylation_data,
             ave_quality=ave_quality,

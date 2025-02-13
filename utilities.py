@@ -255,7 +255,7 @@ def make_shifted_ref(ref_filepath, new_ref_filepath, shift):
         for i in range(0, len(shifted_sequence), 70):
             outfile.write(shifted_sequence[i:i + 70] + "\n")
 
-def get_read_structure(header, split_length, samdata, mouse=False, offset=0, savename=None, title=None):
+def get_read_structure(header, split_length, samdata, species, offset=0, savename=None, title=None):
     """Plots the structure of a read based on its split-mapped SAM data.
 
     Args:
@@ -271,8 +271,15 @@ def get_read_structure(header, split_length, samdata, mouse=False, offset=0, sav
         matplotlib.collections.LineCollection: The LineCollection object representing the plot, 
                                                 or None if savename is provided.
     """
-    rDNA_size = 38542 if mouse else 44838
-    CR_size = 13403 if mouse else 13314
+    if species == 'mouse':
+        rDNA_size = 38542
+        CR_size = 13403
+    elif species == 'human':
+        rDNA_size = 44838
+        CR_size = 13314
+    elif species == 'fly':
+        rDNA_size = 13188
+        CR_size = 13314
 
     plot_data = []
     for flag, direction, pos, _, _, _ in samdata:
