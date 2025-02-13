@@ -9,17 +9,18 @@ Analyze the structure, methylation, variation of rDNA repeats.
 
 ## Installation
 
-Just clone! Needs numpy, matplotlib and pysam. Needs minimap2 and bwa in PATH.
+Just clone! Needs numpy, matplotlib and pysam. Needs minimap2 and bwa in system PATH.
 
 ## Usage
 
 ### Dotplot Visualization
-#### Single Read FAST5 FILE
+#### Single Read FAST5 FILES
+file name is read id by default
 ```python
 reader = fast5_loader.SingleFast5Reader("some.fast5", methylation='cpg')
 analyzer = seq_analysis.ReadAnalyzer(reader, config.RDNA_REF_HUMAN)
 split_analyzed_read = analyzer.split_alignment()
-plot.signle_read_plot_structure(reader, split_analyzed_read, 'temp_figs_dir/', met=True, pdf=False)
+plot.signle_read_plot_structure(reader, split_analyzed_read, 'dir_name', met=True, pdf=False)
 ```
 #### Dorado-Called Multi-Read BAM Files
 ```python
@@ -27,7 +28,7 @@ with BamToSingleReadReader(bam_path) as bam_reader:
     for reader in bam_reader:
         analyzer = seq_analysis.ReadAnalyzer(reader, config.RDNA_REF_HUMAN)
         split_analyzed_read = analyzer.split_alignment()
-        plot.signle_read_plot_structure(reader, split_analyzed_read, 'temp_figs_dir/', met=True, pdf=False)
+        plot.signle_read_plot_structure(reader, split_analyzed_read, 'dir_name', met=True, pdf=False)
 ```
 
 ### Dorado methylation analysis
