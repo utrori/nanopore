@@ -4,7 +4,12 @@ Analyze structure, methylation, variation of rDNA repeat.
 
 ## Table of Contents
 
+- [Installation](#installation)
 - [Usage](#usage)
+
+## Installation
+
+Just clone!
 
 ## Usage
 
@@ -26,4 +31,4 @@ with BamToSingleReadReader(bam_path) as bam_reader:
 ```
 
 ### Dorado methylation analysis
-First, prepare a .bam called by Dorado and a .bam mapped to rDNA with minimap2 (after converting Dorado .bam to .fastq file by samtools fastq).
+First, prepare a .bam called by Dorado and a .bam mapped to rDNA with minimap2 (after converting Dorado output .bam to .fastq file by samtools fastq).

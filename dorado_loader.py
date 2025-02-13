@@ -1,8 +1,3 @@
-from pathlib import Path
-import pysam
-import numpy as np
-from typing import Dict, Tuple, Optional
-
 import pysam
 from pathlib import Path
 import numpy as np
