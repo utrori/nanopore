@@ -1,7 +1,6 @@
 import subprocess
+import tempfile
 import pysam
-import random
-import os
 from pathlib import Path
 import numpy as np
 import matplotlib.collections as mc
@@ -74,23 +73,21 @@ def split_sequence(sequence, split_length):
     return [sequence[i:i + split_length] for i in range(0, len(sequence), split_length)]
 
 
-def make_temp_full_fastq(header, seq, quality, identifier,
-                    temp_file_prefix="temp_fastq"):
-    """Creates a temporary FASTQ file by splitting a read into smaller chunks.
+def make_temp_full_fastq(header, seq, quality):
+    """Creates a temporary FASTQ file for minimap2 alignment.
 
     Args:
         header (str): The FASTQ header (without the leading '@').
         read (str): The read sequence.
         quality (str): The quality string.
-        identifier (str, float): A unique identifier for the read (can be a number).
-        split_length (int): The length to split the read into.
-        temp_file_prefix (str): Prefix for the temporary file name.
     """
-    
-    temp_file_path = TEMP_DIR / f"{temp_file_prefix}_{identifier}.fastq"
 
-    with open(temp_file_path, 'w') as fw:
-        fw.write(f"@{header}\n{seq}\n+\n{quality}\n")
+    with tempfile.NamedTemporaryFile(mode='w+t', suffix=".fastq", delete=False, prefix="temp_fastq_") as temp_file:
+        temp_file_path = Path(temp_file.name)
+        fw = temp_file
+        temp_file.write(f"@{header}\n{seq}\n+\n{quality}\n")
+        temp_file.close()
+    return temp_file_path
 
 def minimap2_mapping(in_fastq, out_sam, ref_path):
     """Performs minimap2 mapping of reads in a FASTQ file to a reference genome.
@@ -107,8 +104,12 @@ def minimap2_mapping(in_fastq, out_sam, ref_path):
 
     command = ["minimap2", "-ax", "map-ont", "-t", "16", ref_path_str, in_fastq_str]
     
-    with open(out_sam_str, "w") as outfile:
-        subprocess.run(command, stdout=outfile, stderr=subprocess.DEVNULL, check=True)
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    sam_output = result.stdout
+    with tempfile.NamedTemporaryFile(mode='w+t', suffix=".sam", delete=False, prefix="temp_sam_") as temp_file:
+        temp_file.write(sam_output)
+        temp_sam_path = Path(temp_file.name)
+    return temp_sam_path
 
 def minimap_mapping_and_sam_analysis(header, read, quality, ref_path):
     """Maps a read using minimap2 and parses the SAM output.
@@ -122,14 +123,9 @@ def minimap_mapping_and_sam_analysis(header, read, quality, ref_path):
     Returns:
         Tuple: A tuple containing the mapped regions and the CIGAR strings.
     """
-    identifier = random.random()
     
-    # Use Path objects for file operations
-    temp_fastq_path = TEMP_DIR / f"temp_fastq_{identifier}.fastq"
-    temp_sam_path = TEMP_DIR / f"single_split_mapped_{identifier}.sam"
-    
-    make_temp_full_fastq(header, read, quality, identifier, temp_file_prefix="temp_fastq")
-    minimap2_mapping(temp_fastq_path, temp_sam_path, ref_path)
+    temp_fastq_path = make_temp_full_fastq(header, read, quality)
+    temp_sam_path = minimap2_mapping(temp_fastq_path, ref_path)
 
     mapped_regions = []
     cigar_converted = []
@@ -144,28 +140,28 @@ def minimap_mapping_and_sam_analysis(header, read, quality, ref_path):
 
     return mapped_regions, cigar_converted
 
-def make_temp_fastq(header, read, quality, identifier, split_length,
-                    temp_file_prefix="temp_fastq"):
+def make_temp_fastq(header, read, quality, split_length):
     """Creates a temporary FASTQ file by splitting a read into smaller chunks.
 
     Args:
         header (str): The FASTQ header (without the leading '@').
         read (str): The read sequence.
         quality (str): The quality string.
-        identifier (str, float): A unique identifier for the read (can be a number).
         split_length (int): The length to split the read into.
         temp_file_prefix (str): Prefix for the temporary file name.
     """
     split_reads = split_sequence(read, split_length)
     split_qualities = split_sequence(quality, split_length)
     
-    temp_file_path = TEMP_DIR / f"{temp_file_prefix}_{identifier}.fastq"
-
-    with open(temp_file_path, 'w') as fw:
+    with tempfile.NamedTemporaryFile(mode='w+t', suffix=".fastq", delete=False, prefix="temp_fastq_") as temp_file:
+        temp_file_path = Path(temp_file.name)
+        fw = temp_file
         for i, (split_read, split_quality) in enumerate(zip(split_reads, split_qualities)):
             fw.write(f"@{header}_{i+1}\n{split_read}\n+\n{split_quality}\n")
+        temp_file.close()
+    return temp_file_path
 
-def bwa_mapping(ref_path, in_fastq, out_sam, multi=False):
+def bwa_mapping(ref_path, in_fastq, multi=False):
     """Performs BWA mapping of reads in a FASTQ file to a reference genome.
 
     Args:
@@ -178,15 +174,18 @@ def bwa_mapping(ref_path, in_fastq, out_sam, multi=False):
     # Convert paths to strings for subprocess if they are Path objects
     ref_path_str = str(ref_path)
     in_fastq_str = str(in_fastq)
-    out_sam_str = str(out_sam)
 
     if multi:
         command = ["bwa", "mem", "-Ma", "-x", "ont2d", "-t", "10", ref_path_str, in_fastq_str]
     else:
         command = ["bwa", "mem", "-M", "-x", "ont2d", "-t", "10", ref_path_str, in_fastq_str]
     
-    with open(out_sam_str, "w") as outfile:
-        subprocess.run(command, stdout=outfile, stderr=subprocess.DEVNULL, check=True)
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    sam_output = result.stdout
+    with tempfile.NamedTemporaryFile(mode='w+t', suffix=".sam", delete=False, prefix="temp_sam_") as temp_file:
+        temp_file.write(sam_output)
+        temp_sam_path = Path(temp_file.name)
+    return temp_sam_path
 
 def split_mapping_and_sam_analysis(split_length: int, header: str, read: str, quality: str, ref_path):
     """Splits a read, maps it using BWA, and parses the SAM output.
@@ -201,14 +200,9 @@ def split_mapping_and_sam_analysis(split_length: int, header: str, read: str, qu
     Returns:
         np.ndarray: A NumPy array containing the parsed SAM records.
     """
-    identifier = random.random()
     
-    # Use Path objects for file operations
-    temp_fastq_path = TEMP_DIR / f"temp_fastq_{identifier}.fastq"
-    temp_sam_path = TEMP_DIR / f"single_split_mapped_{identifier}.sam"
-    
-    make_temp_fastq(header, read, quality, identifier, split_length, temp_file_prefix="temp_fastq")
-    bwa_mapping(ref_path, temp_fastq_path, temp_sam_path)
+    temp_fastq_path = make_temp_fastq(header, read, quality, split_length)
+    temp_sam_path = bwa_mapping(ref_path, temp_fastq_path)
 
     sam_info = []
     with pysam.AlignmentFile(temp_sam_path, 'r') as samfile:

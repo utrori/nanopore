@@ -15,7 +15,7 @@ def signle_read_plot_structure(f5reader: object, analyzed_read: object, savedir:
     if not os.path.exists(savedir):
         os.mkdir(savedir)
 
-    loadeddata = f5reader.read_fast5()
+    loadeddata = f5reader.extract_read_data()
     read_id = loadeddata['read_id']
     seq = loadeddata['sequence']
     quality = loadeddata['quality_scores']
