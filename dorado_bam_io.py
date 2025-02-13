@@ -119,6 +119,7 @@ def methylation_per_coding():
 
 
 def main():
+    # Example of how to use the BamAnalyzer class
     methylation_per_coding()
     quit()
     dorado_bam_path = "test_files/201020_47/calls_2025-02-05_T09-56-59.bam"

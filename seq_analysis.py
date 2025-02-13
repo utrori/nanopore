@@ -27,7 +27,7 @@ class ReadAnalyzer:
     def __init__(self, reader: object, ref: str):
         """Initialize read analyzer with FAST5 file path."""
         self.ref = ref
-        self.loadeddata = reader.read_fast5()
+        self.loadeddata = reader.extract_read_data()
         self.analyzed_read = None
 
     def split_alignment(self) -> SplitAnalyzedRead:

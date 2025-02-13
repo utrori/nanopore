@@ -10,7 +10,7 @@ class SingleFast5Reader:
         self.bc_n = bc_n
         self.methylation = methylation
         
-    def read_fast5(self) -> Dict:
+    def extract_read_data(self) -> Dict:
         """Read single-read Fast5 file and extract key information."""
         try:
             with h5py.File(self.filepath, 'r') as f:
@@ -61,7 +61,7 @@ class SingleFast5Reader:
 def main():
     # Example usage
     reader = SingleFast5Reader("/mnt/data/nanopore_cas9_bc/221124_Y8585fN_CR_bc/workspace/0/00128cf9-6898-4859-a5dd-b94bb8b4d324.fast5")
-    data = reader.read_fast5()
+    data = reader.extract_read_data()
     print(f"Read ID: {data['read_id']}")
     print(f"Sequence length: {len(data['sequence'])}")
     print(f"Quality scores length: {len(data['quality_scores'])}")
