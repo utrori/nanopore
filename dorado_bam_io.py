@@ -1,5 +1,6 @@
 import pysam
 import matplotlib.pyplot as plt
+import pathlib as Path
 import numpy as np
 from dataclasses import dataclass, field
 from typing import List, Dict, Tuple, Optional
@@ -96,10 +97,10 @@ class BamAnalyzer:
         return reads_data
 
 def methylation_per_coding():
-    #dorado_bam_path = "test_files/201020_47/calls_2025-02-05_T09-56-59.bam"
-    #mapped_bam_path = "test_files/201020_47_coding_mapped.bam"
-    dorado_bam_path = "test_files/220705_Y9993fN/calls_2025-02-05_T07-37-34.bam"
-    mapped_bam_path = "test_files/220705_Y9993fN_coding_mapped.bam"
+    dorado_bam_path = "./test_files/201020_47/calls_2025-02-05_T09-56-59.bam"
+    mapped_bam_path = Path("./test_files/201020_47_coding_mapped.bam")
+    #dorado_bam_path = "test_files/220705_Y9993fN/calls_2025-02-05_T07-37-34.bam"
+    #mapped_bam_path = "test_files/220705_Y9993fN_coding_mapped.bam"
     with BamAnalyzer(mapped_bam_path, dorado_bam_path) as analyzer:
       reads_data = analyzer.analyze()
     ave_met_scores = []

@@ -10,7 +10,7 @@ plt.rcParams['font.family']= 'sans-serif'
 plt.rcParams['font.sans-serif'] = 'Arial'
 
 
-def signle_read_plot_structure(savedir, f5reader: object, split_align_res: np.array, mouse='no', met='yes', pdf='no', adenine='no'):
+def signle_read_plot_structure(f5reader: object, split_align_res: np.array, savedir, filename="", mouse='no', met='yes', pdf='no', adenine='no'):
     """Plot read structure."""
     if not os.path.exists(savedir):
         os.mkdir(savedir)
@@ -24,6 +24,8 @@ def signle_read_plot_structure(savedir, f5reader: object, split_align_res: np.ar
     plt.subplots_adjust(left=0.2)
     ax = fig.add_subplot()
     met_window = 200
+    if not filename:
+        filename = read_id
 
     #read structure plot
     lc = utilities.get_read_structure(read_id, config.SPLIT_LENGTH, split_align_res, mouse=mouse)
