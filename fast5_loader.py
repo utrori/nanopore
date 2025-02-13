@@ -34,7 +34,7 @@ class SingleFast5Reader:
                 
                 # Get methylation calls if available
                 if methylation:
-                    methylation_data = self._get_methylation_calls(f, methylation, bc_n)
+                    methylation_data = self._get_methylation_calls(f, sequence, methylation, bc_n)
                 
                 return {
                     'read_id': self.filepath.stem,
@@ -47,18 +47,45 @@ class SingleFast5Reader:
         except Exception as e:
             raise ValueError(f"Error reading Fast5 file: {str(e)}")
     
-    def _get_methylation_calls(self, f: h5py.File, methylation: str, bc_n: str) -> Optional[list]:
+    def _get_methylation_calls(self, f: h5py.File, sequence: str, methylation: str, bc_n: str) -> Optional[list]:
         """Extract methylation calls if available."""
         try:
             basecall_group = f[f'/Analyses/Basecall_1D_00{bc_n}']
             mod_base_table = basecall_group['BaseCalled_template/ModBaseProbs'][:]
+            methylation_data = []
             if methylation == 'cpg':
-                return mod_base_table[:,2]
+                met_scores = mod_base_table[:,2]
+                cpg_sites = _get_cpgs(sequence)
+                for site in cpg_sites:
+                    methylation_data.append((site, met_scores[site]))
             if methylation == '6ma':
-                return mod_base_table[:,1]
+                met_scores = mod_base_table[:,1]
+                m6a_sites = _get_m6as(sequence)
+                for site in m6a_sites:
+                    methylation_data.append((site, met_scores[site]))
+            return methylation_data
         except:
             pass
         return None
+
+def _get_cpgs(seq):
+    """Return a list of CpG sites."""
+    cpg_sites = []
+    upper_seq = seq.upper()
+    for n in range(len(upper_seq) - 1):
+        if upper_seq[n] == 'C':
+            if upper_seq[n+1] == 'G':
+                cpg_sites.append(n)
+    return cpg_sites
+
+def _get_m6as(seq):
+    """Return a list of A sites."""
+    m6a_sites = []
+    upper_seq = seq.upper()
+    for n in range(len(upper_seq) - 1):
+        if upper_seq[n] == 'A':
+            m6a_sites.append(n)
+    return m6a_sites
 
 def main():
     # Example usage

@@ -50,10 +50,10 @@ def signle_read_plot_structure(f5reader: object, analyzed_read: object, savedir:
 
     #methylation plot
     if met:
-        x, y = methylation_analysis.cpg_methylation_binning(met_window, seq, methylation, method='threshold')
+        x, y = methylation_analysis.methylation_binning(met_window, methylation, method='threshold')
         ax.bar(x, y, width=met_window, color = 'magenta', zorder=0, alpha=0.3)
     if adenine:
-        x, y = methylation_analysis.cpg_methylation_binning(met_window, seq, methylation, method='threshold')
+        x, y = methylation_analysis.methylation_binning(met_window, methylation, method='threshold')
         ax.bar(x, y, width=met_window, color = 'blue', zorder=0, alpha=0.3)
 
     if species == 'mouse' or species == 'human':

@@ -30,18 +30,17 @@ class BamToSingleReadReader:
     def __init__(self, bam_path: str):
         """
         Initializes a BAM reader that yields BamAlignmentWrapper objects.
+        Only applicable to BAM files called with Dorado and not mapped to the reference genome.
 
         Args:
             bam_path: Path to the BAM file.
-            bc_n: Basecall number (used for methylation data).
-            methylation: Type of methylation to extract ('cpg' or '6ma').
         """
         self.bam_path = Path(bam_path)
         self.bamfile = None
 
     def __enter__(self):
         """Opens the BAM file for reading when used in a `with` statement."""
-        self.bamfile = pysam.AlignmentFile(self.bam_path, "rb")
+        self.bamfile = pysam.AlignmentFile(self.bam_path, "rb", check_sq=False)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

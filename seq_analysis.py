@@ -65,3 +65,13 @@ class ReadAnalyzer:
             cigar_converted=cigar_converted
         )
         return self.analyzed_read
+
+    def check_rDNA_read_from_split_alignment(self) -> bool:
+        """Check if the read is rDNA-derived from the split alignment."""
+        if self.analyzed_read is None:
+            raise ValueError("Run split_alignment() or minimap2_alignment() first.")
+        rDNA_ratio = np.mean([0 if i[0] == 4 else 1 for i in self.analyzed_read.split_mapping_res])
+        if rDNA_ratio > 0.7:
+            return True
+        else:
+            return False

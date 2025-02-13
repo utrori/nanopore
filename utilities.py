@@ -89,7 +89,7 @@ def make_temp_full_fastq(header, seq, quality):
         temp_file.close()
     return temp_file_path
 
-def minimap2_mapping(in_fastq, out_sam, ref_path):
+def minimap2_mapping(in_fastq, ref_path):
     """Performs minimap2 mapping of reads in a FASTQ file to a reference genome.
 
     Args:
@@ -99,7 +99,6 @@ def minimap2_mapping(in_fastq, out_sam, ref_path):
     """
     # Convert paths to strings for subprocess if they are Path objects
     in_fastq_str = str(in_fastq)
-    out_sam_str = str(out_sam)
     ref_path_str = str(ref_path)
 
     command = ["minimap2", "-ax", "map-ont", "-t", "16", ref_path_str, in_fastq_str]
