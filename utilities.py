@@ -94,7 +94,6 @@ def minimap2_mapping(in_fastq, ref_path):
 
     Args:
         in_fastq (Path or str): Path to the input FASTQ file.
-        out_sam (Path or str): Path to the output SAM file.
         ref_path (Path or str): Path to the reference genome FASTA file.
     """
     # Convert paths to strings for subprocess if they are Path objects
@@ -120,7 +119,8 @@ def minimap_mapping_and_sam_analysis(header, read, quality, ref_path):
         ref_path (Path or str): Path to the reference genome FASTA file.
 
     Returns:
-        Tuple: A tuple containing the mapped regions and the CIGAR strings.
+        mapped_regions (list): A list of tuples containing the mapped regions.
+        cigar_converted (list): A list of CIGAR strings for each alignment.
     """
     
     temp_fastq_path = make_temp_full_fastq(header, read, quality)
@@ -130,8 +130,9 @@ def minimap_mapping_and_sam_analysis(header, read, quality, ref_path):
     cigar_converted = []
     with pysam.AlignmentFile(temp_sam_path, 'r') as samfile:
         for alignment in samfile:
-            mapped_regions.append((alignment.reference_start, alignment.reference_end))
-            cigar_converted.append(alignment.cigarstring)
+            if alignment.is_mapped:
+                mapped_regions.append((alignment.reference_start, alignment.reference_end))
+                cigar_converted.append(alignment.cigarstring)
 
     # Clean up temporary files
     temp_fastq_path.unlink()
@@ -147,7 +148,8 @@ def make_temp_fastq(header, read, quality, split_length):
         read (str): The read sequence.
         quality (str): The quality string.
         split_length (int): The length to split the read into.
-        temp_file_prefix (str): Prefix for the temporary file name.
+    Returns:
+        temp_file_path (Path): Path to the temporary FASTQ file.
     """
     split_reads = split_sequence(read, split_length)
     split_qualities = split_sequence(quality, split_length)
@@ -166,7 +168,6 @@ def bwa_mapping(ref_path, in_fastq, multi=False):
     Args:
         ref_path (Path or str): Path to the reference genome FASTA file.
         in_fastq (Path or str): Path to the input FASTQ file.
-        out_sam (Path or str): Path to the output SAM file.
         multi (bool): If True, use the -a option for multiple hits (suitable for short reads)
                       otherwise, use the -M option for marking shorter split hits as secondary
     """
@@ -186,13 +187,13 @@ def bwa_mapping(ref_path, in_fastq, multi=False):
         temp_sam_path = Path(temp_file.name)
     return temp_sam_path
 
-def split_mapping_and_sam_analysis(split_length: int, header: str, read: str, quality: str, ref_path):
+def split_mapping_and_sam_analysis(split_length: int, header: str, seq: str, quality: str, ref_path: str):
     """Splits a read, maps it using BWA, and parses the SAM output.
 
     Args:
         split_length (int): Length to split the read into.
         header (str): Header of the read.
-        read (str): Read sequence.
+        seq (str): Read sequence.
         quality (str): Quality string.
         ref_path (Path or str): Path to the reference genome FASTA file.
 
@@ -200,7 +201,7 @@ def split_mapping_and_sam_analysis(split_length: int, header: str, read: str, qu
         np.ndarray: A NumPy array containing the parsed SAM records.
     """
     
-    temp_fastq_path = make_temp_fastq(header, read, quality, split_length)
+    temp_fastq_path = make_temp_fastq(header, seq, quality, split_length)
     temp_sam_path = bwa_mapping(ref_path, temp_fastq_path)
 
     sam_info = []
@@ -248,14 +249,14 @@ def make_shifted_ref(ref_filepath, new_ref_filepath, shift):
         for i in range(0, len(shifted_sequence), 70):
             outfile.write(shifted_sequence[i:i + 70] + "\n")
 
-def get_read_structure(header, split_length, samdata, species, offset=0, savename=None, title=None):
+def get_read_structure(read_id, split_length, samdata, species, offset=0, savename=None, title=None):
     """Plots the structure of a read based on its split-mapped SAM data.
 
     Args:
-        header (str): The read header.
+        read_id (str): The read ID.
         split_length (int): The length used to split the read during mapping.
         samdata (np.ndarray): The NumPy array containing the parsed SAM records.
-        mouse (bool): If True, use mouse reference genome parameters.
+        species (str): The species of the reference genome ('mouse', 'human', or 'fly').
         offset (int): Offset for the rDNA reference coordinates.
         savename (Path or str, optional): If provided, save the plot to this file.
         title (str, optional): Title for the plot.
@@ -275,7 +276,7 @@ def get_read_structure(header, split_length, samdata, species, offset=0, savenam
         CR_size = 13314
 
     plot_data = []
-    for flag, direction, pos, _, _, _ in samdata:
+    for flag, _, pos, _, _, _ in samdata:
         flag = int(flag)
         pos = int(pos)
         if easy_flag(flag, 4) == 1:  # Unmapped
@@ -367,3 +368,18 @@ def make_rDNA_fastq(ref_filepath="rDNA_index/humRibosomal2.fa", output_fastq="rD
             split_seq = sequence[n:n + split_length]
             quality = "J" * len(split_seq)  # Dummy quality scores
             fw.write(f"@rDNA_{n // split_length}\n{split_seq}\n+\n{quality}\n")
+
+
+def bam_concatenate(bam_files: list[str], output_bam: str):
+    """Concatenates multiple BAM files into a single BAM file."""
+    bam_strs = [str(bam) for bam in bam_files] # Convert Path objects to strings
+
+    command = f"samtools cat -@ 10 -o {output_bam} {' '.join(bam_strs)}"
+    print(command)
+    run_command(command, verbose=True)
+
+
+if __name__ == "__main__":
+    # Example usage
+    guppy_bams = list(Path("./test_files/guppyv6_output_PSCA0047/").glob("**/*.bam"))
+    bam_concatenate(guppy_bams, 'test_files/guppyv6_output_PSCA0047/concatenated.bam')

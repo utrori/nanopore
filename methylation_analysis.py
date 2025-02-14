@@ -2,8 +2,8 @@ import numpy as np
 import collections
 
 
-def methylation_binning(window, methylation_data, method='average'):
-    """Calculate average CpG methylation over a window."""
+def methylation_binning(window: int, methylation_data: list[(int, int)], method: str='average'):
+    """Calculate average CpG methylation over a window. For plotting purposes."""
     threshold = 255 * 0.7
     summary_data = collections.defaultdict(list)
     x = []
