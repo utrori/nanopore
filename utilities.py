@@ -127,18 +127,19 @@ def minimap_mapping_and_sam_analysis(header, read, quality, ref_path):
     temp_sam_path = minimap2_mapping(temp_fastq_path, ref_path)
 
     mapped_regions = []
-    cigar_converted = []
+    coneverted_cigars = []
+    aligned_pairs = []
     with pysam.AlignmentFile(temp_sam_path, 'r') as samfile:
         for alignment in samfile:
             if alignment.is_mapped:
                 mapped_regions.append((alignment.reference_start, alignment.reference_end))
-                cigar_converted.append(alignment.cigarstring)
-
+                coneverted_cigars.append(alignment.cigarstring)
+                aligned_pairs.append(alignment.get_aligned_pairs())
     # Clean up temporary files
     temp_fastq_path.unlink()
     temp_sam_path.unlink()
 
-    return mapped_regions, cigar_converted
+    return mapped_regions, coneverted_cigars, aligned_pairs
 
 def make_temp_fastq(header, read, quality, split_length):
     """Creates a temporary FASTQ file by splitting a read into smaller chunks.
