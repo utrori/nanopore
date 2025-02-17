@@ -21,7 +21,7 @@ class MinimapAnalyzedRead:
     length: int
     mapped_regions: list
     converted_cigars: list
-    aligned_pairs: list
+    aligned_segments: list
 
 class ReadAnalyzer:
     """Analyzes a single read from a FAST5 file."""
@@ -53,7 +53,7 @@ class ReadAnalyzer:
         """Align the read using minimap2."""
         seq = self.loadeddata['sequence']
         qual = self.loadeddata['quality_string']
-        mapped_regions, converted_cigars, aligned_pairs = utilities.minimap_mapping_and_sam_analysis(self.loadeddata['read_id'], seq, qual, self.ref)
+        mapped_regions, converted_cigars, aligned_segments = utilities.minimap_mapping_and_sam_analysis(self.loadeddata['read_id'], seq, qual, self.ref)
         methylation_data = self.loadeddata['methylation']
         ave_quality = np.mean(self.loadeddata['quality_scores'])
         length = len(self.loadeddata['sequence'])
@@ -64,7 +64,7 @@ class ReadAnalyzer:
             length=length,
             mapped_regions=mapped_regions,
             converted_cigars=converted_cigars,
-            aligned_pairs=aligned_pairs
+            aligned_segments=aligned_segments
         )
         return self.analyzed_read
 

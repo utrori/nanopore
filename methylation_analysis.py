@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib.pyplot as plt
+import pysam
 import config
 import seq_analysis
 import dorado_loader
@@ -79,28 +81,60 @@ def get_seq_and_find_cpgs(ref):
     seq = seq.upper()
     cpg_positions = []
     for n, dinuc in [(i, seq[i:i+2]) for i in range(len(seq) - 1)]:
-        print(n, dinuc)
         if dinuc == 'CG':
             cpg_positions.append(n)
     return seq, cpg_positions
 
 
-def find_true_cpgs(aligned_pair, ref_cpg_positions):
-
-    quit()
-    #print(aligned_pair[:20])
+def find_true_cpgs(alignment: pysam.AlignedSegment, methylation, ref_cpg_positions):
+    met_scores = []
+    aligned_pairs = alignment.get_aligned_pairs()
+    if not aligned_pairs:
+        return None
+    if alignment.is_reverse:
+        rlen = alignment.query_length
+        return None
+    true_in_refs = [] 
+    for n, m in aligned_pairs:
+        if m in ref_cpg_positions:
+            true_in_refs.append(n)
+    for pos, score in methylation:
+        if pos in true_in_refs:
+            met_scores.append(score)
+    return met_scores
+    
     
 
 def main():
-    ref = config.RDNA_REF_HUMAN
+    ref = config.RDNA_REF_HUMAN_COD
     ref_seq, ref_cpg_positions = get_seq_and_find_cpgs(ref)
     test_bam = 'test_files/201020_47/calls_2025-02-05_T09-56-59.bam'
+    all_met_scores = []
+    true_met_scores = []
     with dorado_loader.BamToSingleReadReader(test_bam) as bam:
         for single_read in bam:
+            loadeddata = single_read.extract_read_data()
+            methylation = loadeddata['methylation']
             analyzer = seq_analysis.ReadAnalyzer(single_read, ref)
             analyzed_data = analyzer.minimap2_alignment()
-            for aligned_pair in analyzed_data.aligned_pairs:
-                find_true_cpgs(aligned_pair, ref_cpg_positions)
+            for alignment in analyzed_data.aligned_segments:
+                scores = find_true_cpgs(alignment, methylation, ref_cpg_positions)
+                met_scores = [i[1] for i in methylation]
+                if scores:
+                    all_met_scores.extend(met_scores)
+                    true_met_scores.extend(scores)
+            if len(all_met_scores) > 1000000:
+                break
+    mid_ratio_all = len([i for i in all_met_scores if 30 < i < 220])/len(all_met_scores)
+    mid_ratio_true = len([i for i in true_met_scores if 30 < i < 220])/len(true_met_scores)
+    print(mid_ratio_all, mid_ratio_true)
+    quit()
+    plt.hist(all_met_scores, bins=100)
+    plt.savefig('./temp_figs/all_met_scores.png')
+    plt.close()
+    plt.hist(true_met_scores, bins=100)
+    plt.savefig('./temp_figs/true_met_scores.png')
+
 
 if __name__ == '__main__':
     main()
