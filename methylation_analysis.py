@@ -31,7 +31,8 @@ def methylation_binning(window: int, methylation_data: list[(int, int)], method:
                     y (list): The computed methylation value for each bin. This is either the average score or the scaled threshold
                             proportion depending on the chosen method.
     """
-    threshold = 255 * 0.7
+    met_threshold = 255 * 0.9
+    unmet_threshold = 255 * 0.1
     summary_data = collections.defaultdict(list)
     x = []
     y = []
@@ -49,9 +50,13 @@ def methylation_binning(window: int, methylation_data: list[(int, int)], method:
         for n in range(max_pos + 1):
             x.append(n * window)
             if summary_data.get(n, []):
-                y.append(np.mean([1 if i > threshold else 0 for i in summary_data.get(n, [])])*10000)
+                temp_summary = [i for i in summary_data.get(n, []) if i < unmet_threshold or met_threshold < i]
+                if temp_summary:
+                    y.append(np.mean([1 if i > met_threshold else 0 for i in temp_summary])*10000)
+                else:
+                    y.append(-2000)
             else:
-                y.append(0)
+                y.append(-2000)
     return x, y
 
 
