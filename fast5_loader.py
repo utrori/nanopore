@@ -4,11 +4,12 @@ import numpy as np
 from typing import Dict, Tuple, Optional
 
 class SingleFast5Reader:
-    def __init__(self, filepath: str):
+    def __init__(self, filepath: str, bc_n: int = 0):
         """Initialize Fast5 reader with file path."""
         self.filepath = Path(filepath)
+        self.bc_n = bc_n
         
-    def extract_read_data(self, bc_n: int = 0, methylation: str = 'cpg') -> Dict:
+    def extract_read_data(self, methylation: str = 'cpg') -> Dict:
         """
             Read single-read Fast5 file and extract key information.
             bc_n: Basecall number (used for basecalled data)
@@ -23,7 +24,7 @@ class SingleFast5Reader:
                 """
                 
                 # Extract sequence data
-                basecall_group = f[f'/Analyses/Basecall_1D_00{bc_n}']
+                basecall_group = f[f'/Analyses/Basecall_1D_00{self.bc_n}']
                 fastq = basecall_group['BaseCalled_template/Fastq'][()].decode('utf-8')
                 
                 # Parse FASTQ format
@@ -34,7 +35,7 @@ class SingleFast5Reader:
                 
                 # Get methylation calls if available
                 if methylation:
-                    methylation_data = self._get_methylation_calls(f, sequence, methylation, bc_n)
+                    methylation_data = self._get_methylation_calls(f, sequence, methylation)
                 
                 return {
                     'read_id': self.filepath.stem,
@@ -47,10 +48,10 @@ class SingleFast5Reader:
         except Exception as e:
             raise ValueError(f"Error reading Fast5 file: {str(e)}")
     
-    def _get_methylation_calls(self, f: h5py.File, sequence: str, methylation: str, bc_n: str) -> Optional[list]:
+    def _get_methylation_calls(self, f: h5py.File, sequence: str, methylation: str) -> Optional[list]:
         """Extract methylation calls if available."""
         try:
-            basecall_group = f[f'/Analyses/Basecall_1D_00{bc_n}']
+            basecall_group = f[f'/Analyses/Basecall_1D_00{self.bc_n}']
             mod_base_table = basecall_group['BaseCalled_template/ModBaseProbs'][:]
             methylation_data = []
             if methylation == 'cpg':
