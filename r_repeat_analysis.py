@@ -1,6 +1,7 @@
 from pathlib import Path
+from natsort import natsorted
+import collections
 import pysam
-import subprocess
 import utilities
 
 
@@ -21,10 +22,22 @@ def make_r_repeat_refs():
     seq_3 = seq[15584:16084]
     with open("references/r_repeats/r_repeat_4copies_1123.fa", 'w') as f:
         f.write(f">r_repeat_3copies\n{seq_5}{repeat1_seq}{repeat1_seq}{repeat2_seq}{repeat3_seq}{seq_3}\n")
+    with open("references/r_repeats/r_repeat_4copies_1223.fa", 'w') as f:
+        f.write(f">r_repeat_3copies\n{seq_5}{repeat1_seq}{repeat2_seq}{repeat2_seq}{repeat3_seq}{seq_3}\n")
     with open("references/r_repeats/r_repeat_4copies_1233.fa", 'w') as f:
         f.write(f">r_repeat_3copies\n{seq_5}{repeat1_seq}{repeat2_seq}{repeat3_seq}{repeat3_seq}{seq_3}\n")
-    with open("references/r_repeats/r_repeat_3copies.fa", 'w') as f:
+    with open("references/r_repeats/r_repeat_3copies_123.fa", 'w') as f:
         f.write(f">r_repeat_3copies\n{seq_5}{repeat1_seq}{repeat2_seq}{repeat3_seq}{seq_3}\n")
+    with open("references/r_repeats/r_repeat_3copies_122.fa", 'w') as f:
+        f.write(f">r_repeat_3copies\n{seq_5}{repeat1_seq}{repeat2_seq}{repeat2_seq}{seq_3}\n")
+    with open("references/r_repeats/r_repeat_3copies_133.fa", 'w') as f:
+        f.write(f">r_repeat_3copies\n{seq_5}{repeat1_seq}{repeat3_seq}{repeat3_seq}{seq_3}\n")
+    with open("references/r_repeats/r_repeat_3copies_223.fa", 'w') as f:
+        f.write(f">r_repeat_3copies\n{seq_5}{repeat2_seq}{repeat2_seq}{repeat3_seq}{seq_3}\n")
+    with open("references/r_repeats/r_repeat_3copies_233.fa", 'w') as f:
+        f.write(f">r_repeat_3copies\n{seq_5}{repeat2_seq}{repeat3_seq}{repeat3_seq}{seq_3}\n")
+    with open("references/r_repeats/r_repeat_3copies_113.fa", 'w') as f:
+        f.write(f">r_repeat_3copies\n{seq_5}{repeat1_seq}{repeat1_seq}{repeat3_seq}{seq_3}\n")
     with open("references/r_repeats/r_repeat_2copies_12.fa", 'w') as f:
         f.write(f">r_repeat_2copies\n{seq_5}{repeat1_seq}{repeat2_seq}{seq_3}\n")
     with open("references/r_repeats/r_repeat_2copies_13.fa", 'w') as f:
@@ -39,28 +52,41 @@ def make_r_repeat_refs():
         f.write(f">r_repeat_2copy\n{seq_5}{repeat3_seq}{seq_3}\n")
 
 def map_r_repeats():
-    fq = "test_files/201020_47/201020_47.fastq"
-    r_repeats = ["r_repeat_4copies_1123", "r_repeat_4copies_1233", "r_repeat_3copies", "r_repeat_2copies_12", "r_repeat_2copies_13", "r_repeat_2copies_23", "r_repeat_1copy_1", "r_repeat_1copy_2", "r_repeat_1copy_3"]
+    fq = "test_files/dorado_output_PSCA0047/PSCA0047_dorado.fastq"
+    refs = Path('references/r_repeats').glob('*')
     summary = {} # key: read_id, value: dict with keys as r_repeat ref names and values as the alignment score
-    for r_repeat in r_repeats:
-        sam = utilities.minimap2_mapping(fq, f"references/r_repeats/{r_repeat}.fa")
+    r_repeats = []
+    for ref in refs:
+        r_repeat = ref.stem
+        r_repeats.append(r_repeat)
+        sam = utilities.minimap2_mapping(fq, ref)
         with pysam.AlignmentFile(sam, "r") as f:
             for read in f:
                 if not read.is_mapped or read.query_length < 30000:
                     continue
                 alignment_score = read.get_tag("AS")
-                if alignment_score < 300:
+                if alignment_score < 500:
                     continue
                 if read.query_name not in summary:
                     summary[read.query_name] = {}
                 summary[read.query_name][r_repeat] = alignment_score
-    for read_id, scores in summary.items():
-        print(read_id)
-        for r_repeat, score in scores.items():
-            print(f"{r_repeat}: {score}")
-        print("-" * 20)
-    
-
+    each_read_r_repeat_ret = ''
+    read_id2max_r_repeat = {}
+    for read_id, scores in natsorted(summary.items()):
+        max_r_repeat = max(scores, key=lambda k: scores[k])
+        #print(read_id, max_r_repeat)
+        read_id2max_r_repeat[read_id] = max_r_repeat
+        each_read_r_repeat_ret += f'{read_id}\t{max_r_repeat}\n'
+    with open('data/read_id2r_repeat_type.txt', 'w') as fw:
+        fw.write(each_read_r_repeat_ret)
+    max_dist = collections.defaultdict(int) 
+    for r_repeat in read_id2max_r_repeat.values():
+        max_dist[r_repeat] += 1
+    summary_ret = ''
+    for r_repeat in sorted(max_dist):
+        summary_ret += f'{r_repeat}\t{max_dist[r_repeat]}\n'
+    with open('data/r_repeat_summary.txt', 'w') as fw:
+        fw.write(summary_ret)
 
 
 if __name__ == "__main__":
