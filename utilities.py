@@ -177,9 +177,9 @@ def bwa_mapping(ref_path, in_fastq, multi=False):
     in_fastq_str = str(in_fastq)
 
     if multi:
-        command = ["bwa", "mem", "-Ma", "-x", "ont2d", "-t", "10", ref_path_str, in_fastq_str]
+        command = ["bwa", "mem", "-Ma", "-x", "ont2d", "-t", "10", "-Y", ref_path_str, in_fastq_str]
     else:
-        command = ["bwa", "mem", "-M", "-x", "ont2d", "-t", "10", ref_path_str, in_fastq_str]
+        command = ["bwa", "mem", "-M", "-x", "ont2d", "-t", "10", "-Y", ref_path_str, in_fastq_str]
     
     result = subprocess.run(command, capture_output=True, text=True, check=True)
     sam_output = result.stdout
