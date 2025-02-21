@@ -33,5 +33,5 @@ with dorado_loader.BamToSingleReadReader(bam_path) as bam_reader:
         plot.signle_read_plot_structure(reader, split_analyzed_read, 'dir_name', met=True, pdf=False)
 ```
 
-### Dorado methylation analysis
+### Dorado Methylation Analysis
 Prepare two BAM files: one with Dorado basecalls and methylation calls, and another with the same reads mapped to your rDNA reference using Minimap2 (after converting the Dorado BAM to FASTQ with `samtools fastq`).
