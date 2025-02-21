@@ -26,7 +26,7 @@ plot.signle_read_plot_structure(reader, split_analyzed_read, 'dir_name', met=Tru
 #### Dorado-Called Multi-Read BAM Files
 The BAM file should be Dorado called with methylation setting.
 ```python
-with BamToSingleReadReader(bam_path) as bam_reader:
+with dorado_loader.BamToSingleReadReader(bam_path) as bam_reader:
     for reader in bam_reader:
         analyzer = seq_analysis.ReadAnalyzer(reader, config.RDNA_REF_HUMAN)
         split_analyzed_read = analyzer.split_alignment()
