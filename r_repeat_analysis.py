@@ -89,6 +89,29 @@ def map_r_repeats():
         fw.write(summary_ret)
 
 
+def get_each_r_repeat_from_seq():
+    #fq = "test_files/dorado_output_PSCA0047/PSCA0047_dorado.fastq"
+    fq = "test_files/201020_47.fastq"
+    consensus_5 = 'TGAGACTCAGCCGGCGTCTCGCCGTGTCCCGGGTCGACCGGCGGGCCTTCTCCACCGAGCGGCGTGTAGGAGTGCCCGTCGGGACGAACCGCAACCGGAGCGTCCCCGTCTCGGTCGGCACCTCCGGGGTCGACCAGCTGCCGCCCGCGAGCTCCGGACTTAGCCGGCGCCTGCACGTGTCCCGGGTCGACCAGCAGGCGGCCGCCGGACGCTGCGGCGCACCGACGCGAGGGCGTCGATTCCCGTTCGCGCGCCCGCGACCTCCACCGGCCTCGGCCCGCGGTGGAGCTGGGACCACGCGGAACTCCCTCTCTCACATTTTTTTCAGCCCCACCGCGAGTTTGCGTCCGCGGGACTTTTAAGAGGGAGTCACTGCTGCCGTCAGCCAGTAATGCTTCCTCCTTTTTTGCTTTT'
+    consensus_3 = 'TCCTTGGTGCCTTCTCGGCTC'
+    consensus_5_file = 'references/r_repeat_5_consensus.fa'
+    consensus_3_file = 'references/r_repeat_3_consensus.fa'
+    with open(consensus_5_file, 'w') as fw:
+        fw.write(f'>r_repeat_5_consensus\n{consensus_5}')
+    with open(consensus_3_file, 'w') as fw:
+        fw.write(f'>r_repeat_3_consensus\n{consensus_3}')
+    sam = utilities.minimap2_mapping(fq, consensus_5_file)
+    sam2 = utilities.bwa_mapping(fq, consensus_3_file)
+    read_id2alignments = collections.defaultdict(list)
+    with pysam.AlignmentFile(sam2, "r") as f:
+        for read in f:
+            if read.is_mapped:
+                read_id2alignments[read.query_name].append((read.reference_start, read.reference_end))
+    for rid, alignments in read_id2alignments.items():
+        print(alignments)
+
+
 if __name__ == "__main__":
-    make_r_repeat_refs()
-    map_r_repeats()
+    #make_r_repeat_refs()
+    #map_r_repeats()
+    get_each_r_repeat_from_seq()
