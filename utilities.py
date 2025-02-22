@@ -163,7 +163,7 @@ def make_temp_fastq(header, read, quality, split_length):
         temp_file.close()
     return temp_file_path
 
-def bwa_mapping(ref_path, in_fastq, multi=False):
+def bwa_mapping(in_fastq, ref_path, multi=False):
     """Performs BWA mapping of reads in a FASTQ file to a reference genome.
 
     Args:
