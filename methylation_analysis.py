@@ -1,10 +1,33 @@
 import numpy as np
+import logging
+from pathlib import Path
 import matplotlib.pyplot as plt
 import pysam
 import config
 import seq_analysis
 import dorado_loader
 import collections
+
+
+# Define the location and name of the log file
+log_file_path = Path("logs/methylation_analysis.log")
+
+# Create the directory if it doesn't exist
+log_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+# Configure the logging module
+logging.basicConfig(
+    level=logging.DEBUG,  # Set the logging level (DEBUG, INFO, WARNING, etc.)
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",  # Time and log message format
+    datefmt="%Y-%m-%d %H:%M:%S",  # Time format (year-month-day hour:minute:second)
+    handlers=[
+        logging.FileHandler(log_file_path, mode='w'),  # Log to a file. with 'w' the file is overwritten.
+        logging.StreamHandler()  # Also log to the console
+    ]
+)
+
+# Example of logging
+logger = logging.getLogger(__name__)
 
 
 def methylation_binning(window: int, methylation_data: list[(int, int)], method: str='average'):
@@ -92,20 +115,35 @@ def get_seq_and_find_cpgs(ref):
 
 
 def find_true_cpgs(alignment: pysam.AlignedSegment, methylation, ref_cpg_positions):
+    """
+    Extracts the methylation scores that correspond to CpG sites in the reference sequence.
+    """
     met_scores = []
     aligned_pairs = alignment.get_aligned_pairs()
     if not aligned_pairs:
         return None
     if alignment.is_reverse:
         rlen = alignment.query_length
-        return None
+        methylation = [(rlen - i[0] - 2, i[1]) for i in methylation]
     true_in_refs = [] 
+    true_in_refs_in_ref = []
     for n, m in aligned_pairs:
         if m in ref_cpg_positions:
             true_in_refs.append(n)
+            true_in_refs_in_ref.append(m)
+    called_cpg_not_in_ref = []
     for pos, score in methylation:
         if pos in true_in_refs:
             met_scores.append(score)
+        if pos not in true_in_refs and alignment.query_alignment_start <= pos <= alignment.query_alignment_end:
+            called_cpg_not_in_ref.append(pos)
+    if alignment.query_length > 30000:
+        logger.info('{} {} {} {} {} {} {}'.format(alignment.query_name, alignment.is_forward, alignment.reference_start, len(met_scores)/len(called_cpg_not_in_ref) + 1, np.mean(met_scores), len(met_scores)/alignment.reference_length, alignment.query_length))
+        logger.info(true_in_refs)
+        logger.info(called_cpg_not_in_ref)
+        #logger.info(true_in_refs_in_ref)
+        #logger.info(methylation)
+        #logger.info(met_scores)
     return met_scores
     
     
@@ -113,23 +151,30 @@ def find_true_cpgs(alignment: pysam.AlignedSegment, methylation, ref_cpg_positio
 def main():
     ref = config.RDNA_REF_HUMAN_COD
     ref_seq, ref_cpg_positions = get_seq_and_find_cpgs(ref)
-    test_bam = 'test_files/201020_47/calls_2025-02-05_T09-56-59.bam'
+    test_bam = 'test_files/dorado_output_PSCA0047/calls_2025-02-05_T09-56-59.bam'
     all_met_scores = []
     true_met_scores = []
     with dorado_loader.BamToSingleReadReader(test_bam) as bam:
         for single_read in bam:
             loadeddata = single_read.extract_read_data()
             methylation = loadeddata['methylation']
+            average_phred = np.mean(loadeddata['quality_scores'])
+            if average_phred < 15:
+                continue
             analyzer = seq_analysis.ReadAnalyzer(single_read, ref)
             analyzed_data = analyzer.minimap2_alignment()
             for alignment in analyzed_data.aligned_segments:
-                scores = find_true_cpgs(alignment, methylation, ref_cpg_positions)
+                if alignment.is_mapped:
+                    scores = find_true_cpgs(alignment, methylation, ref_cpg_positions)
+                """
                 met_scores = [i[1] for i in methylation]
                 if scores:
                     all_met_scores.extend(met_scores)
                     true_met_scores.extend(scores)
+                """
             if len(all_met_scores) > 1000000:
                 break
+    quit()
     mid_ratio_all = len([i for i in all_met_scores if 30 < i < 220])/len(all_met_scores)
     mid_ratio_true = len([i for i in true_met_scores if 30 < i < 220])/len(true_met_scores)
     print(mid_ratio_all, mid_ratio_true)
