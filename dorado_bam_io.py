@@ -17,6 +17,7 @@ class AlignmentInfo:
     mapping_quality: int
     flag: int
     methylation_data: List[Tuple[int, int]] = field(default_factory=list)
+    aligned_segment: pysam.AlignedSegment = None
 
 @dataclass
 class ReadData:
@@ -27,6 +28,7 @@ class ReadData:
         self.alignments.append(alignment)
 
 class BamAnalyzer:
+    # Mapped bam needs to be cleaned with samtools view -F 4
     def __init__(self, mapped_bam_path: str, dorado_bam_path: str):
         self.mapped_bam_path = mapped_bam_path
         self.dorado_bam_path = dorado_bam_path
@@ -36,16 +38,17 @@ class BamAnalyzer:
     def __enter__(self):
         self.dorado_bam = pysam.AlignmentFile(self.dorado_bam_path, "rb", check_sq=False)
         self.mapped_bam = pysam.AlignmentFile(self.mapped_bam_path, "rb", check_sq=False)
-        self.methylation_data_by_read_id = self._load_methylation_data()
+        self.methylation_data_by_read_id, self.quality_data_by_read_id = self._load_dorado_data()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.mapped_bam.close()
         self.dorado_bam.close()
 
-    def _load_methylation_data(self) -> Dict[str, List[Tuple[int, int]]]:
+    def _load_dorado_data(self) -> Dict[str, List[Tuple[int, int]]]:
         """Loads CpG methylation data from the Dorado BAM into a dictionary."""
         methylation_data_by_read_id = {}
+        quality_by_read_id = {}
         
         for read in self.dorado_bam:
             read_id = read.query_name
@@ -53,8 +56,10 @@ class BamAnalyzer:
                 modified_bases = read.modified_bases
                 if ('C', 0, 'm') in modified_bases:
                     methylation_data_by_read_id[read_id] = read.modified_bases[('C', 0, 'm')]
+            quality = read.query_qualities
+            quality_by_read_id[read_id] = quality
 
-        return methylation_data_by_read_id
+        return methylation_data_by_read_id, quality_by_read_id
 
     def analyze(self) -> Dict[str, ReadData]:
         """Analyzes multiply-aligned reads, extracting methylation data and organizing by read ID."""
@@ -72,6 +77,7 @@ class BamAnalyzer:
             else:
                 hard_clipped = 0
 
+            # Calculate the query alignment start and end based on the read's orientation
             query_len = read.query_length + hard_clipped
             if read.is_reverse:
                 query_alignment_start = query_len - read.query_alignment_end
@@ -90,19 +96,20 @@ class BamAnalyzer:
                 cigar=read.cigarstring,
                 mapping_quality=read.mapping_quality,
                 flag=read.flag,
-                methylation_data=self.methylation_data_by_read_id.get(read_id, [])
+                methylation_data=self.methylation_data_by_read_id.get(read_id, []),
+                aligned_segment=read
             )
             reads_data[read_id].add_alignment(alignment_info)
 
         return reads_data
 
 def methylation_per_coding():
-    dorado_bam_path = "./test_files/201020_47/calls_2025-02-05_T09-56-59.bam"
-    mapped_bam_path = Path("./test_files/201020_47_coding_mapped.bam")
+    dorado_bam_path = "test_files/R10.4.1_PSCA0047.bam"
+    mapped_bam_path = "test_files/R10.4.1_PSCA0047/R10.4.1_PSCA0047.bam"
     #dorado_bam_path = "test_files/220705_Y9993fN/calls_2025-02-05_T07-37-34.bam"
     #mapped_bam_path = "test_files/220705_Y9993fN_coding_mapped.bam"
     with BamAnalyzer(mapped_bam_path, dorado_bam_path) as analyzer:
-      reads_data = analyzer.analyze()
+        reads_data = analyzer.analyze()
     ave_met_scores = []
     for read_id, read_data in reads_data.items():
         for alignment in read_data.alignments:

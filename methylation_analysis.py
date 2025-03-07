@@ -1,4 +1,5 @@
 import numpy as np
+import dorado_bam_io
 import logging
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -116,7 +117,7 @@ def get_seq_and_find_cpgs(ref):
 
 def find_true_cpgs(alignment: pysam.AlignedSegment, methylation, ref_cpg_positions):
     """
-    Extracts the methylation scores that correspond to CpG sites in the reference sequence.
+    Extracts the methylation scores that correspond to CpG sites that are present the reference sequence.
     """
     met_scores = []
     aligned_pairs = alignment.get_aligned_pairs()
@@ -146,33 +147,159 @@ def find_true_cpgs(alignment: pysam.AlignedSegment, methylation, ref_cpg_positio
         #logger.info(met_scores)
     return met_scores
     
+
+def get_methylation_in_reference_positions(alignment: pysam.AlignedSegment, methylation, ref_cpg_positions):
+    """
+    Maps methylation scores from a read to reference CpG positions.
     
+    Parameters:
+        alignment: Aligned segment from BAM file
+        methylation: List of tuples (read_pos, score) with methylation data
+        ref_cpg_positions: List of CpG positions in the reference
+        
+    Returns:
+        Dictionary mapping reference CpG positions to methylation scores
+    """
+    # Return empty dict if no alignment data
+    if not alignment.is_mapped or not alignment.get_aligned_pairs():
+        return {}
+    
+    # Handle reverse strand reads - adjust positions
+    if alignment.is_reverse:
+        rlen = alignment.query_length
+        methylation = [(rlen - pos - 2, score) for pos, score in methylation]
+    
+    # Create lookup dictionary for methylation data
+    methylation_dict = {pos: score for pos, score in methylation}
+    
+    # Initialize dictionary with all reference CpG positions
+    # Setting default value to None indicates position not covered by this read
+    methylation_in_ref = {pos: None for pos in ref_cpg_positions}
+    
+    # Map read positions to reference positions for CpG sites
+    for read_pos, ref_pos in alignment.get_aligned_pairs():
+        if ref_pos in ref_cpg_positions and read_pos is not None:
+            prob = methylation_dict.get(read_pos, -1)
+            if prob != -1:
+                methylation_in_ref[ref_pos] = prob
+    
+    # Optionally log detailed information for long reads
+    #if alignment.query_length > 30000 and logger.isEnabledFor(logging.DEBUG):
+        #covered_positions = sum(1 for score in methylation_in_ref.values() if score is not None)
+        #logger.debug(f"Long read {alignment.query_name}: ref_start={alignment.reference_start}, "
+                    #f"strand={'forward' if alignment.is_forward else 'reverse'}, "
+                    #f"CpGs mapped={covered_positions}/{len(ref_cpg_positions)}, "
+                    #f"length={alignment.query_length}")
+    
+    return methylation_in_ref
+
+
+def make_methylation_summary_in_reference_positions(bam, ref) -> dict[int: list[int]]:
+    """
+    Analyze methylation data in a BAM file and summarize it by reference CpG position.
+    
+    Parameters:
+        bam: Path to BAM file
+        ref: Path to reference sequence FASTA file
+    Returns:
+        Dictionary mapping reference CpG positions to a list of methylation scores
+    """
+    # Load reference sequence and CpG positions
+    _, ref_cpg_positions = get_seq_and_find_cpgs(ref)
+    
+    # Initialize dictionary to store methylation scores by reference position
+    methylation_summary = {pos: [] for pos in ref_cpg_positions}
+    
+    # Iterate over reads in BAM file
+    with dorado_loader.BamToSingleReadReader(bam) as bam:
+        for n, single_read in enumerate(bam):
+            # Extract methylation data and alignment information
+            loadeddata = single_read.extract_read_data()
+            methylation = loadeddata['methylation']
+            analyzer = seq_analysis.ReadAnalyzer(single_read, ref)
+            analyzed_data = analyzer.minimap2_alignment()
+            
+            # Process each alignment segment
+            for alignment in analyzed_data.aligned_segments:
+                if alignment.is_mapped:
+                    # Get methylation scores for CpG sites in reference
+                    scores = get_methylation_in_reference_positions(alignment, methylation, ref_cpg_positions)
+                    # Update summary dictionary with scores
+                    for pos, score in scores.items():
+                        if score is not None:
+                            methylation_summary[pos].append(score)
+    
+    return methylation_summary
+    
+
+def make_methylation_summary_in_reference_positions_with_aligned_bam(aligned_bam, called_bam, ref) -> dict[int: list[int]]:
+    """
+    Analyze methylation data in a BAM file and summarize it by reference CpG position.
+    
+    Parameters:
+        aligned_bam: Path to BAM file with aligned reads
+        called_bam: Path to BAM file with methylation calls
+        ref: Path to reference sequence FASTA file
+    Returns:
+        Dictionary mapping reference CpG positions to a list of methylation scores
+    """
+    # Load reference sequence and CpG positions
+    _, ref_cpg_positions = get_seq_and_find_cpgs(ref)
+    
+    # Initialize dictionary to store methylation scores by reference position
+    methylation_summary = {pos: [] for pos in ref_cpg_positions}
+    
+    # Iterate over reads in BAM file
+    with dorado_bam_io.BamAnalyzer(aligned_bam, called_bam) as analyzer:
+        reads_data = analyzer.analyze()
+        n = 0
+        for read_id, read_data in reads_data.items():
+            n += 1
+            if n > 100:
+                break
+            for alignment in read_data.alignments:
+                methylation = alignment.methylation_data
+                scores = get_methylation_in_reference_positions(alignment.aligned_segment, methylation, ref_cpg_positions)
+                if scores:
+                    for pos, score in scores.items():
+                        if score is not None:
+                            methylation_summary[pos].append(score)
+
+    return methylation_summary
 
 def main():
     ref = config.RDNA_REF_HUMAN_COD
     ref_seq, ref_cpg_positions = get_seq_and_find_cpgs(ref)
     test_bam = 'test_files/dorado_output_PSCA0047/calls_2025-02-05_T09-56-59.bam'
+    aligned_bam = 'test_files/dorado_output_PSCA0047/PSCA0047_dorado_aligned.bam'
+    methylaion_summary = make_methylation_summary_in_reference_positions_with_aligned_bam(aligned_bam, test_bam, ref)
+    #methylaion_summary = make_methylation_summary_in_reference_positions(test_bam, ref)
+    print(methylaion_summary[12753], methylaion_summary[241])
+    quit()
     all_met_scores = []
     true_met_scores = []
+    num_reads_per_sample = 1000
+    phred_scores = []
     with dorado_loader.BamToSingleReadReader(test_bam) as bam:
-        for single_read in bam:
+        logger.info(f'Analyzing {test_bam}')
+        for n, single_read in enumerate(bam):
             loadeddata = single_read.extract_read_data()
             methylation = loadeddata['methylation']
             average_phred = np.mean(loadeddata['quality_scores'])
+            phred_scores.append(average_phred)
             if average_phred < 15:
                 continue
             analyzer = seq_analysis.ReadAnalyzer(single_read, ref)
             analyzed_data = analyzer.minimap2_alignment()
             for alignment in analyzed_data.aligned_segments:
                 if alignment.is_mapped:
-                    scores = find_true_cpgs(alignment, methylation, ref_cpg_positions)
-                """
-                met_scores = [i[1] for i in methylation]
-                if scores:
-                    all_met_scores.extend(met_scores)
-                    true_met_scores.extend(scores)
-                """
-            if len(all_met_scores) > 1000000:
+                    scores = get_methylation_in_reference_positions(alignment, methylation, ref_cpg_positions)
+                    print(scores)
+                    #met_scores = [i[1] for i in methylation]
+                    #if scores:
+                        #all_met_scores.extend(met_scores)
+                        #true_met_scores.extend(scores)
+            if n > num_reads_per_sample:
                 break
     quit()
     mid_ratio_all = len([i for i in all_met_scores if 30 < i < 220])/len(all_met_scores)

@@ -90,20 +90,30 @@ def map_r_repeats():
 
 
 def get_each_r_repeat_from_seq():
-    #fq = "test_files/dorado_output_PSCA0047/PSCA0047_dorado.fastq"
-    fq = "test_files/201020_47.fastq"
+    fq = "test_files/dorado_output_PSCA0047/PSCA0047_dorado.fastq"
+    #fq = "test_files/dorado_output_PSCA0047/"
+    r_ex5 = "GCGGCCACCCGGGGTCCCGGCCCTCGCGCGTCCTTCCTCCTCGCTCCTCCGCACGGGTCGACCAGCAGACCGCGGGTGGTGGGCGGCGGGCGGCGAGGCCCCACGGGGCGTCCGCGCACCCGGCCGACCTCCGCTCGTGACCTCTCCTCGGTCGGGCCTCCGGGGTCGACCGCCTGCCGCCCGCGGGCG"
+    r_ex3 = "GCTGCTGCTGCTGCCTCTGCCTCCACGGTTCAAGCAAACAGCAAGTTTTCTATTTCGAGTAAAGACGTAATTTCACCATTTTGGCCGGGCTGGTCTCGAACTCCCGACCTAGTGATCCGCCCGCCTCGGCCTCCCAAAGACTGCTGGGAGTACAGATGTGAGCCACCATGCCCGGCCGATTCCTTCCTTTTTTCAATCTTATTTTCTGAACGCTGCCGTGTATGAACATACATCTACACATAC"
     consensus_5 = 'TGAGACTCAGCCGGCGTCTCGCCGTGTCCCGGGTCGACCGGCGGGCCTTCTCCACCGAGCGGCGTGTAGGAGTGCCCGTCGGGACGAACCGCAACCGGAGCGTCCCCGTCTCGGTCGGCACCTCCGGGGTCGACCAGCTGCCGCCCGCGAGCTCCGGACTTAGCCGGCGCCTGCACGTGTCCCGGGTCGACCAGCAGGCGGCCGCCGGACGCTGCGGCGCACCGACGCGAGGGCGTCGATTCCCGTTCGCGCGCCCGCGACCTCCACCGGCCTCGGCCCGCGGTGGAGCTGGGACCACGCGGAACTCCCTCTCTCACATTTTTTTCAGCCCCACCGCGAGTTTGCGTCCGCGGGACTTTTAAGAGGGAGTCACTGCTGCCGTCAGCCAGTAATGCTTCCTCCTTTTTTGCTTTT'
     consensus_3 = 'TCCTTGGTGCCTTCTCGGCTC'
+    r_ex5_file = 'references/r_repeat_ex5.fa'
+    r_ex3_file = 'references/r_repeat_ex3.fa'
     consensus_5_file = 'references/r_repeat_5_consensus.fa'
     consensus_3_file = 'references/r_repeat_3_consensus.fa'
     with open(consensus_5_file, 'w') as fw:
         fw.write(f'>r_repeat_5_consensus\n{consensus_5}')
     with open(consensus_3_file, 'w') as fw:
         fw.write(f'>r_repeat_3_consensus\n{consensus_3}')
+    with open(r_ex5_file, 'w') as fw:
+        fw.write(f'>r_repeat_ex5\n{r_ex5}')
+    with open(r_ex3_file, 'w') as fw:
+        fw.write(f'>r_repeat_ex3\n{r_ex3}')
     sam = utilities.minimap2_mapping(fq, consensus_5_file)
     sam2 = utilities.bwa_mapping(fq, consensus_3_file)
+    sam_ex5 = utilities.minimap2_mapping(fq, r_ex5_file)
+    sam_ex3 = utilities.minimap2_mapping(fq, r_ex3_file)
     read_id2alignments = collections.defaultdict(list)
-    with pysam.AlignmentFile(sam2, "r") as f:
+    with pysam.AlignmentFile(sam_ex3, "r") as f:
         for read in f:
             if read.is_mapped:
                 read_id2alignments[read.query_name].append((read.reference_start, read.reference_end))

@@ -380,7 +380,13 @@ def bam_concatenate(bam_files: list[str], output_bam: str):
     run_command(command, verbose=True)
 
 
+def dorado_example():
+    subprocess.run('~/Softwares/dorado-0.9.1-linux-x64/bin/dorado basecaller --modified-bases-models ~/Softwares/dorado-0.9.1-linux-x64/models/dna_r9.4.1_e8_hac@v3.3_5mCG@v0.1 /home/owner/Softwares/dorado-0.9.1-linux-x64/models/dna_r9.4.1_e8_hac@v3.3 HG02723_1.pod5 > HG02723_1_dorado.bam', shell=True)
+
 if __name__ == "__main__":
     # Example usage
-    guppy_bams = list(Path("./test_files/guppyv6_output_PSCA0047/").glob("**/*.bam"))
-    bam_concatenate(guppy_bams, 'test_files/guppyv6_output_PSCA0047/concatenated.bam')
+    sam = minimap2_mapping("test_files/HG02723_1/HG02723_1.fastq", "references/human_rDNA_only_coding.fa")
+    with open(sam) as f:
+        content = f.read()
+    with open('test_files/HG02723_1/HG02723_1.sam', 'w') as f:
+        f.write(content)
