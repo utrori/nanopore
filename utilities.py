@@ -1,10 +1,12 @@
 import subprocess
+import os
 import tempfile
 import pysam
 from pathlib import Path
 import numpy as np
 import matplotlib.collections as mc
 import matplotlib.pyplot as plt
+import io
 
 # Use Path objects for file paths
 TEMP_DIR = Path("temp_files")
@@ -89,25 +91,50 @@ def make_temp_full_fastq(header, seq, quality):
         temp_file.close()
     return temp_file_path
 
-def minimap2_mapping(in_fastq, ref_path):
+def minimap2_mapping(in_fastq, ref_path, out_bam=None, only_mapped=False):
     """Performs minimap2 mapping of reads in a FASTQ file to a reference genome.
 
     Args:
         in_fastq (Path or str): Path to the input FASTQ file.
         ref_path (Path or str): Path to the reference genome FASTA file.
+        out_bam (Path or str, optional): Path to output BAM file. If provided, mapping results will be saved here.
+        only_mapped (bool, optional): If True, only mapped reads will be included in the output BAM. Default is False.
+
+    Returns:
+        Path or None: Path to the temporary SAM file if out_bam is None, otherwise None.
     """
     # Convert paths to strings for subprocess if they are Path objects
     in_fastq_str = str(in_fastq)
     ref_path_str = str(ref_path)
-
-    command = ["minimap2", "-ax", "map-ont", "-t", "16", "-Y", ref_path_str, in_fastq_str]
     
-    result = subprocess.run(command, capture_output=True, text=True, check=True)
-    sam_output = result.stdout
-    with tempfile.NamedTemporaryFile(mode='w+t', suffix=".sam", delete=False, prefix="temp_sam_") as temp_file:
-        temp_file.write(sam_output)
-        temp_sam_path = Path(temp_file.name)
-    return temp_sam_path
+    # Basic minimap2 command
+    minimap_cmd = ["minimap2", "-ax", "map-ont", "-t", "16", "-Y", ref_path_str, in_fastq_str]
+    
+    if out_bam:
+        # Direct pipe to samtools for output to BAM
+        minimap_process = subprocess.Popen(minimap_cmd, stdout=subprocess.PIPE)
+        
+        # Construct samtools command based on whether we want only mapped reads
+        samtools_cmd = ["samtools", "view", "-b"]
+        if only_mapped:
+            samtools_cmd.extend(["-F", "4"])  # Filter out unmapped reads
+            
+        samtools_cmd.extend(["-o", str(out_bam), "-"])
+        
+        # Execute the samtools command with input from minimap2
+        subprocess.run(samtools_cmd, stdin=minimap_process.stdout, check=True)
+        minimap_process.stdout.close()
+        minimap_process.wait()
+        
+        return None
+    else:
+        # If no output BAM is specified, save to temporary SAM file and return its path
+        result = subprocess.run(minimap_cmd, capture_output=True, text=True, check=True)
+        sam_output = result.stdout
+        
+        with tempfile.NamedTemporaryFile(mode='w+t', suffix=".sam", delete=False, prefix="temp_sam_") as temp_file:
+            temp_file.write(sam_output)
+            return Path(temp_file.name)
 
 def minimap_mapping_and_sam_analysis(header, read, quality, ref_path):
     """Maps a read using minimap2 and parses the SAM output.
@@ -163,32 +190,57 @@ def make_temp_fastq(header, read, quality, split_length):
         temp_file.close()
     return temp_file_path
 
-def bwa_mapping(in_fastq, ref_path, multi=False):
+def bwa_mapping(in_fastq, ref_path, out_bam=None, only_mapped=False, multi=False):
     """Performs BWA mapping of reads in a FASTQ file to a reference genome.
 
     Args:
-        ref_path (Path or str): Path to the reference genome FASTA file.
         in_fastq (Path or str): Path to the input FASTQ file.
-        multi (bool): If True, use the -a option for multiple hits (suitable for short reads)
+        ref_path (Path or str): Path to the reference genome FASTA file.
+        out_bam (Path or str, optional): Path to output BAM file. If provided, mapping results will be saved here.
+        only_mapped (bool, optional): If True, only mapped reads will be included in the output BAM. Default is False.
+        multi (bool, optional): If True, use the -a option for multiple hits (suitable for short reads)
                       otherwise, use the -M option for marking shorter split hits as secondary
+    
+    Returns:
+        Path or None: Path to the temporary SAM file if out_bam is None, otherwise None.
     """
     # Convert paths to strings for subprocess if they are Path objects
     ref_path_str = str(ref_path)
     in_fastq_str = str(in_fastq)
 
+    # Build the BWA command based on multi parameter
     if multi:
-        command = ["bwa", "mem", "-Ma", "-x", "ont2d", "-t", "10", "-Y", ref_path_str, in_fastq_str]
+        bwa_cmd = ["bwa", "mem", "-Ma", "-x", "ont2d", "-t", "10", "-Y", ref_path_str, in_fastq_str]
     else:
-        command = ["bwa", "mem", "-M", "-x", "ont2d", "-t", "10", "-Y", ref_path_str, in_fastq_str]
+        bwa_cmd = ["bwa", "mem", "-M", "-x", "ont2d", "-t", "10", "-Y", ref_path_str, in_fastq_str]
     
-    result = subprocess.run(command, capture_output=True, text=True, check=True)
-    sam_output = result.stdout
-    with tempfile.NamedTemporaryFile(mode='w+t', suffix=".sam", delete=False, prefix="temp_sam_") as temp_file:
-        temp_file.write(sam_output)
-        temp_sam_path = Path(temp_file.name)
-    return temp_sam_path
+    if out_bam:
+        # Direct pipe to samtools for output to BAM
+        bwa_process = subprocess.Popen(bwa_cmd, stdout=subprocess.PIPE)
+        
+        # Construct samtools command based on whether we want only mapped reads
+        samtools_cmd = ["samtools", "view", "-b"]
+        if only_mapped:
+            samtools_cmd.extend(["-F", "4"])  # Filter out unmapped reads
+            
+        samtools_cmd.extend(["-o", str(out_bam), "-"])
+        
+        # Execute the samtools command with input from bwa
+        subprocess.run(samtools_cmd, stdin=bwa_process.stdout, check=True)
+        bwa_process.stdout.close()
+        bwa_process.wait()
+        
+        return None
+    else:
+        # If no output BAM is specified, save to temporary SAM file and return its path
+        result = subprocess.run(bwa_cmd, capture_output=True, text=True, check=True)
+        sam_output = result.stdout
+        
+        with tempfile.NamedTemporaryFile(mode='w+t', suffix=".sam", delete=False, prefix="temp_sam_") as temp_file:
+            temp_file.write(sam_output)
+            return Path(temp_file.name)
 
-def split_mapping_and_sam_analysis(split_length: int, header: str, seq: str, quality: str, ref_path: str):
+def split_mapping_and_sam_analysis(split_length: int, header: str, seq: str, quality: str, ref_path: str, out_bam=None):
     """Splits a read, maps it using BWA, and parses the SAM output.
 
     Args:
@@ -197,13 +249,21 @@ def split_mapping_and_sam_analysis(split_length: int, header: str, seq: str, qua
         seq (str): Read sequence.
         quality (str): Quality string.
         ref_path (Path or str): Path to the reference genome FASTA file.
+        out_bam (Path or str, optional): If provided, save the mapping results to this BAM file.
 
     Returns:
         np.ndarray: A NumPy array containing the parsed SAM records.
     """
     
     temp_fastq_path = make_temp_fastq(header, seq, quality, split_length)
-    temp_sam_path = bwa_mapping(ref_path, temp_fastq_path)
+    
+    if out_bam:
+        # If out_bam is provided, save the mapping results directly
+        bwa_mapping(temp_fastq_path, ref_path, out_bam=out_bam)
+        # We still need to parse the SAM for analysis, so create a temporary SAM file
+        temp_sam_path = bwa_mapping(temp_fastq_path, ref_path)
+    else:
+        temp_sam_path = bwa_mapping(temp_fastq_path, ref_path)
 
     sam_info = []
     with pysam.AlignmentFile(temp_sam_path, 'r') as samfile:
@@ -380,10 +440,30 @@ def bam_concatenate(bam_files: list[str], output_bam: str):
     run_command(command, verbose=True)
 
 
-def dorado_example():
-    subprocess.run('~/Softwares/dorado-0.9.1-linux-x64/bin/dorado basecaller --modified-bases-models ~/Softwares/dorado-0.9.1-linux-x64/models/dna_r9.4.1_e8_hac@v3.3_5mCG@v0.1 /home/owner/Softwares/dorado-0.9.1-linux-x64/models/dna_r9.4.1_e8_hac@v3.3 HG02723_1.pod5 > HG02723_1_dorado.bam', shell=True)
+def dorado_basecalling(pod5_file: str, output_bam: str):
+    command = f'~/Softwares/dorado-0.9.1-linux-x64/bin/dorado basecaller --modified-bases-models ~/Softwares/dorado-0.9.1-linux-x64/models/dna_r9.4.1_e8_hac@v3.3_5mCG@v0.1 /home/owner/Softwares/dorado-0.9.1-linux-x64/models/dna_r9.4.1_e8_hac@v3.3 {pod5_file} > {output_bam}'
+    run_command(command, verbose=True)
+
+
+def dorado_bc_hpgp():
+    hgpg_dir = Path("/media/owner/bbeedd59-668c-4d67-a65b-442d3272c3bd/hpgp")
+    for f5 in hgpg_dir.glob('**/batch0.fast5'):
+        pod5_file = f5.with_suffix('.pod5')
+        command = f'pod5 convert fast5 {f5} --output {pod5_file} --threads 15'
+        #run_command(command, verbose=True)
+        out_bam_basedir = Path("/media/owner/bbeedd59-668c-4d67-a65b-442d3272c3bd/hpgp/dorado_bc/")
+        sample = f5.parts[-2].split('_rDNA')[0]
+        out_bam = out_bam_basedir / (sample + '.bam')
+        #dorado_basecalling(pod5_file, out_bam)
+        dorado_mapped_bam = out_bam_basedir.parent / 'dorado_aligned' / (sample + '_mapped.bam')
+        temp_fastq = out_bam_basedir.parent / 'dorado_aligned' / (sample + '.fastq')
+        command = f'samtools fastq -@ 10 {out_bam} > {temp_fastq}'
+        #run_command(command, verbose=True)
+        #minimap2_mapping(temp_fastq, "references/human_rDNA_only_coding.fa", out_bam=dorado_mapped_bam, only_mapped=True)
+        os.unlink(temp_fastq)
 
 if __name__ == "__main__":
+    dorado_bc_hpgp()
     # Example usage
     sam = minimap2_mapping("test_files/HG02723_1/HG02723_1.fastq", "references/human_rDNA_only_coding.fa")
     with open(sam) as f:
