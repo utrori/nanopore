@@ -180,6 +180,7 @@ def get_methylation_in_reference_positions(alignment: pysam.AlignedSegment, meth
     for read_pos, ref_pos in alignment.get_aligned_pairs():
         if ref_pos in ref_cpg_positions and read_pos is not None:
             prob = methylation_dict.get(read_pos, -1)
+            # Skip positions where CpG was present in reference but not correctly called in the read
             if prob != -1:
                 methylation_in_ref[ref_pos] = prob
     
