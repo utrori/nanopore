@@ -179,34 +179,9 @@ class BamAnalyzer:
 
         return reads_data
 
-def methylation_per_coding():
-    """
-    Analyze methylation patterns in coding regions and create histogram.
-    """
-    dorado_bam_path = "test_files/R10.4.1_PSCA0047.bam"
-    mapped_bam_path = "test_files/R10.4.1_PSCA0047/R10.4.1_PSCA0047.bam"
-    with BamAnalyzer(mapped_bam_path, dorado_bam_path) as analyzer:
-        reads_data = analyzer.analyze()
-    
-    ave_met_scores = []
-    for read_id, read_data in reads_data.items():
-        for alignment in read_data.alignments:
-            met_list = read_data.methylation_data
-            in_met_scores = []
-            if 4000 < alignment.length < 16000:
-                for i in met_list:
-                    if alignment.query_alignment_start < i[0] < alignment.query_alignment_end:
-                        in_met_scores.append(i[1])
-            if in_met_scores:
-                ave_met_scores.append(np.mean(in_met_scores))
-    
-    plt.hist(ave_met_scores, bins=100)
-    plt.show()
-
 def main():
     """Example usage of BamAnalyzer"""
-    methylation_per_coding()
-    quit()
+    # Removed call to methylation_per_coding()
     
     dorado_bam_path = "test_files/201020_47/calls_2025-02-05_T09-56-59.bam"
     mapped_bam_path = "test_files/201020_47_coding_mapped.bam"
