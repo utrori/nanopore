@@ -1,17 +1,28 @@
 """
-R-repeat detection module for human rDNA analysis.
+R-repeat region detection module.
 
-This module focuses exclusively on detecting r-repeat regions in nanopore reads
-by aligning reads to the conserved flanking sequences.
+This module detects r-repeat regions in Oxford Nanopore sequencing reads by:
+1. Creating FASTQ files from BAM inputs
+2. Using minimap2 to align reads against r-repeat references
+3. Identifying reads with r-repeat regions and their boundaries
 """
 
 from pathlib import Path
-import pysam  # Add pysam import
-import subprocess  # Add subprocess import
+import os
+import json
+import pysam
+import subprocess
+import logging
+import tempfile
+import sys
+
+# Ensure parent directory is in path for imports
+parent_dir = str(Path(__file__).parent.parent.parent)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
 import numpy as np  # Add numpy import
-import json  # Add json import
 import shutil  # Add shutil import
-import logging  # Add logging import
 import argparse  # Add argparse import
 
 # Configure logging

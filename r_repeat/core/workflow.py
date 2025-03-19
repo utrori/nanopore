@@ -1,26 +1,28 @@
 """
-R-repeat workflow management script.
+Core workflow module for r-repeat analysis.
 
-This script coordinates the complete r-repeat analysis pipeline by integrating:
-1. r_repeat_detection.py - Detecting r-repeat regions
-2. r_repeat_methylation_analysis.py - Analyzing methylation patterns
-3. r_repeat_unit_analysis_new.py - Analyzing internal unit structure (NEW)
-4. r_repeat_multi_analysis.py - Analyzing multi-region reads (when applicable)
-
-It handles the extraction of reads to FASTQ format when necessary and manages
-the flow of data between analysis steps.
+This module handles the entire workflow for analyzing r-repeat regions from Oxford Nanopore sequencing data.
 """
 
 import os
-import subprocess
-import json
-import numpy as np
-import pickle
-import argparse
+import sys
 import logging
+import json
+import pickle
 from pathlib import Path
+import subprocess
+import numpy as np
+import argparse
 import shutil
-import copy  # Add this import at the top of the file
+import copy
+
+# Ensure parent directory is in path for imports
+parent_dir = str(Path(__file__).parent.parent.parent)
+if (parent_dir not in sys.path):
+    sys.path.append(parent_dir)
+
+# We'll import the modules directly only when needed to avoid circular imports
+# Instead of importing at the module level, we'll import within functions
 
 # Configure logging
 logging.basicConfig(
@@ -33,13 +35,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
-# Import the other scripts as modules (no need to re-implement them)
-import r_repeat_detection
-import r_repeat_methylation_analysis
-import r_repeat_unit_analysis_new  # Use the new unit analysis script
-import r_repeat_multi_analysis
-# Remove direct import of analyze_upstream_coding as it will be called via r_repeat_methylation_analysis
 
 def extract_reads_to_fastq(bam_path, output_fastq=None, temp_dir=None):
     """
@@ -57,8 +52,8 @@ def extract_reads_to_fastq(bam_path, output_fastq=None, temp_dir=None):
     bam_path = Path(bam_path)
     
     # Create a temporary file if no output path provided
-    if output_fastq is None:
-        if temp_dir is None:
+    if (output_fastq is None):
+        if (temp_dir is None):
             temp_dir = "temp_files"
         
         temp_dir = Path(temp_dir)
@@ -69,7 +64,7 @@ def extract_reads_to_fastq(bam_path, output_fastq=None, temp_dir=None):
     output_fastq = Path(output_fastq)
     
     # Skip extraction if file already exists and has content
-    if output_fastq.exists() and output_fastq.stat().st_size > 0:
+    if (output_fastq.exists() and (output_fastq.stat().st_size > 0)):
         logger.info(f"Using existing FASTQ file: {output_fastq}")
         return str(output_fastq)
     
@@ -103,11 +98,17 @@ def run_complete_analysis(bam_path, output_dir=None, keep_temp_files=False, reus
     Returns:
         dict: Results summary containing paths to all output files
     """
+    # Import modules here to avoid circular imports
+    from r_repeat.detection.detection import detect_r_repeats
+    import r_repeat.unit_analysis.unit_analysis as unit_analysis
+    from r_repeat.methylation.methylation_analysis import analyze_methylation
+    from r_repeat.core.multi_region_analysis import analyze_multi_regions, get_multi_region_statistics
+    
     bam_path = Path(bam_path)
     
     # Set up output directory with proper sample name
     sample_name = bam_path.stem
-    if output_dir is None:
+    if (output_dir is None):
         output_dir = Path("r_repeat_results") / sample_name
     
     output_dir = Path(output_dir)
@@ -147,7 +148,7 @@ def run_complete_analysis(bam_path, output_dir=None, keep_temp_files=False, reus
         logger.info("Step 1/5: Detecting r-repeat regions...")
         
         # Run detection pipeline with reuse flag
-        r_repeat_regions, r_repeat_fasta = r_repeat_detection.detect_r_repeats(
+        r_repeat_regions, r_repeat_fasta = detect_r_repeats(
             fastq_path, 
             output_dir=output_dir,
             reuse_existing=reuse_existing,
@@ -164,32 +165,32 @@ def run_complete_analysis(bam_path, output_dir=None, keep_temp_files=False, reus
         logger.info("Step 2/5: Analyzing r-repeat unit structure...")
         
         # Create motif reference
-        motif_ref = r_repeat_unit_analysis_new.create_motif_reference()
+        motif_ref = unit_analysis.create_motif_reference()
         
         # Align r-repeat sequences to motif
-        alignment_bam = r_repeat_unit_analysis_new.align_to_motif(
+        alignment_bam = unit_analysis.align_to_motif(
             fastq_path=fastq_path, 
             output_dir=temp_dir,  # Store alignments in temp directory
             reuse_existing=reuse_existing
         )
         
         # Process motif alignments to identify units
-        read_alignments = r_repeat_unit_analysis_new.process_motif_alignments(alignment_bam)
+        read_alignments = unit_analysis.process_motif_alignments(alignment_bam)
         
         # Add correspondence between units and regions, and get distributions
-        unit_count_distribution, unit_lengths, region_lengths, read_ids_with_problematic_units, unit_analysis_data = r_repeat_unit_analysis_new.correspond_units_to_regions(
+        unit_count_distribution, unit_lengths, region_lengths, read_ids_with_problematic_units, unit_analysis_data = unit_analysis.correspond_units_to_regions(
             read_alignments, r_repeat_regions)
         
         # Generate visualizations in dedicated unit analysis directory
-        unit_count_viz = r_repeat_unit_analysis_new.generate_unit_count_visualization(
+        unit_count_viz = unit_analysis.generate_unit_count_visualization(
             unit_count_distribution, output_dir=unit_dir
         )
         
-        unit_length_viz = r_repeat_unit_analysis_new.generate_unit_length_visualization(
+        unit_length_viz = unit_analysis.generate_unit_length_visualization(
             unit_lengths, output_dir=unit_dir
         )
         
-        region_length_viz = r_repeat_unit_analysis_new.generate_region_length_visualization(
+        region_length_viz = unit_analysis.generate_region_length_visualization(
             region_lengths, output_dir=unit_dir
         )
         
@@ -263,7 +264,7 @@ def run_complete_analysis(bam_path, output_dir=None, keep_temp_files=False, reus
                 json.dump(serializable_regions, f, indent=2)
             
             # Run multi-region analysis
-            multi_regions, multi_viz = r_repeat_multi_analysis.analyze_multi_regions(
+            multi_regions, multi_viz = analyze_multi_regions(
                 regions_file,
                 output_dir=multi_region_dir
             )
@@ -280,7 +281,7 @@ def run_complete_analysis(bam_path, output_dir=None, keep_temp_files=False, reus
                     'sample_name': sample_name,
                     'read_count': len(multi_regions),
                     'region_count': sum(len(regions) for regions in multi_regions.values()),
-                    'multi_region_stats': r_repeat_multi_analysis.get_multi_region_statistics(multi_regions)
+                    'multi_region_stats': get_multi_region_statistics(multi_regions)
                 }
                 json.dump(multi_data, f, indent=2)
         else:
@@ -336,7 +337,7 @@ def run_complete_analysis(bam_path, output_dir=None, keep_temp_files=False, reus
         
         # Run methylation analysis with the cleaned data structure
         # This will now internally handle both upstream and downstream region analysis
-        r_repeat_data, methylation_viz, upstream_results, downstream_results = r_repeat_methylation_analysis.analyze_methylation(
+        r_repeat_data, methylation_viz, upstream_results, downstream_results = analyze_methylation(
             r_repeat_regions_clean,
             bam_path,
             output_dir=methylation_dir,
@@ -346,12 +347,12 @@ def run_complete_analysis(bam_path, output_dir=None, keep_temp_files=False, reus
         
         # Extract upstream visualization paths from the results
         upstream_viz = []
-        if isinstance(upstream_results, dict) and 'visualizations' in upstream_results:
+        if (isinstance(upstream_results, dict) and ('visualizations' in upstream_results)):
             upstream_viz = list(upstream_results['visualizations'].values())
             
         # Extract downstream visualization paths from the results
         downstream_viz = []
-        if isinstance(downstream_results, dict) and 'visualizations' in downstream_results:
+        if (isinstance(downstream_results, dict) and ('visualizations' in downstream_results)):
             downstream_viz = list(downstream_results['visualizations'].values())
         
         # Compile comprehensive results summary
@@ -412,7 +413,7 @@ def run_complete_analysis(bam_path, output_dir=None, keep_temp_files=False, reus
             region_count = sum(len(regions) if isinstance(regions, list) else 1 
                               for regions in r_repeat_regions.values())
             multi_region_reads = sum(1 for regions in r_repeat_regions.values() 
-                                    if isinstance(regions, list) and len(regions) > 1)
+                                    if (isinstance(regions, list) and (len(regions) > 1)))
             
             # Count reads by unit count
             unit_counts = {}
@@ -476,7 +477,7 @@ def run_complete_analysis(bam_path, output_dir=None, keep_temp_files=False, reus
         
         # Create a symlink to the latest results for convenience
         latest_link = Path("r_repeat_results") / "latest"
-        if latest_link.is_symlink() or latest_link.exists():
+        if (latest_link.is_symlink() or latest_link.exists()):
             latest_link.unlink()
         
         try:
@@ -520,7 +521,7 @@ def run_batch_analysis(input_dir, output_parent_dir=None, pattern="*.bam", keep_
     """
     input_dir = Path(input_dir)
     
-    if output_parent_dir is None:
+    if (output_parent_dir is None):
         output_parent_dir = Path("r_repeat_results")
     
     output_parent_dir = Path(output_parent_dir)
@@ -582,19 +583,19 @@ def run_batch_analysis(input_dir, output_parent_dir=None, pattern="*.bam", keep_
             }
             
             # Collect statistics for cross-sample analysis
-            if sample_results.get("status") == "success":
+            if (sample_results.get("status") == "success"):
                 # Add to total r-repeat count
                 batch_summary["r_repeat_total_count"] += sample_results.get("r_repeat_count", 0)
                 
                 # Aggregate unit count distribution
                 for count, freq in sample_results.get("unit_counts", {}).items():
                     count_str = str(count)  # Convert to string for JSON keys
-                    if count_str not in batch_summary["unit_statistics"]["count_distribution"]:
+                    if (count_str not in batch_summary["unit_statistics"]["count_distribution"]):
                         batch_summary["unit_statistics"]["count_distribution"][count_str] = 0
                     batch_summary["unit_statistics"]["count_distribution"][count_str] += freq
                 
                 # Add unit length statistics
-                if "unit_lengths_summary" in sample_results and sample_results["unit_lengths_summary"].get("count", 0) > 0:
+                if (("unit_lengths_summary" in sample_results) and (sample_results["unit_lengths_summary"].get("count", 0) > 0)):
                     batch_summary["unit_statistics"]["length_statistics"]["mean"].append(sample_results["unit_lengths_summary"].get("mean"))
                     batch_summary["unit_statistics"]["length_statistics"]["median"].append(sample_results["unit_lengths_summary"].get("median"))
                     batch_summary["unit_statistics"]["length_statistics"]["min"].append(sample_results["unit_lengths_summary"].get("min"))
@@ -607,14 +608,14 @@ def run_batch_analysis(input_dir, output_parent_dir=None, pattern="*.bam", keep_
                         with open(upstream_summary_file, 'r') as f:
                             upstream_data = json.load(f)
                             
-                            if "pearson_correlation" in upstream_data:
+                            if ("pearson_correlation" in upstream_data):
                                 batch_summary["upstream_methylation"]["correlation"].append({
                                     "sample": sample_name,
                                     "pearson_r": upstream_data["pearson_correlation"]["r"],
                                     "p_value": upstream_data["pearson_correlation"]["p_value"]
                                 })
                                 
-                            if "mean_difference" in upstream_data:
+                            if ("mean_difference" in upstream_data):
                                 batch_summary["upstream_methylation"]["mean_difference"].append({
                                     "sample": sample_name,
                                     "value": upstream_data["mean_difference"]
@@ -715,7 +716,7 @@ def generate_cross_sample_visualizations(batch_summary, output_dir):
         
         # Create bars with color based on statistical significance (p < 0.05)
         bars = ax.bar(samples, correlations, 
-                     color=['red' if p < 0.05 else 'gray' for p in p_values])
+                     color=['red' if (p < 0.05) else 'gray' for p in p_values])
         
         # Add horizontal line at 0
         ax.axhline(y=0, color='black', linestyle='-', alpha=0.3)

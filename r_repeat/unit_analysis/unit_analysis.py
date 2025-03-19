@@ -1,5 +1,5 @@
 """
-R-repeat unit structure analysis module - New Implementation.
+R-repeat unit structure analysis module.
 
 This module analyzes the internal structure of r-repeat regions by identifying
 the repetitive units composed of:
@@ -7,14 +7,21 @@ the repetitive units composed of:
 2. A variable CT dinucleotide repeat region
 """
 
-import logging
-import subprocess
 from pathlib import Path
+import json
+import matplotlib.pyplot as plt
+import seaborn as sns
+import logging
 import pysam
 import numpy as np
-import json  # Add json import
-import matplotlib.pyplot as plt  # Add matplotlib import
-import seaborn as sns  # Add seaborn import
+import subprocess
+import os
+import sys
+
+# Ensure parent directory is in path for imports
+parent_dir = str(Path(__file__).parent.parent.parent)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
 
 # Configure logging
 logging.basicConfig(

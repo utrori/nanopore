@@ -14,8 +14,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
-# Import the upstream analysis module through r_repeat_methylation_analysis
-from r_repeat_methylation_analysis import analyze_upstream_coding
+import sys
+
+# Direct import from r_repeat package
+from r_repeat.upstream_analysis.analyze_upstream_coding import analyze_upstream_coding_methylation
+
+# Ensure parent directory is in path for imports
+parent_dir = str(Path(__file__).parent.parent.parent)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
 
 # Configure logging
 logging.basicConfig(
@@ -109,7 +116,7 @@ def batch_analyze_upstream_methylation(input_dir, output_dir=None, threshold=0.3
             sample_data_dir.mkdir(parents=True, exist_ok=True)
             
             # Run upstream coding analysis
-            sample_results = analyze_upstream_coding.analyze_upstream_coding_methylation(
+            sample_results = analyze_upstream_coding_methylation(
                 meth_file, 
                 output_dir=sample_output_dir,
                 low_upstream_threshold=threshold

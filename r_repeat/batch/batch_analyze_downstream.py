@@ -14,8 +14,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
-# Import the downstream analysis module
-from analyze_downstream_igs import analyze_downstream_igs_methylation
+import sys
+
+# Direct import from r_repeat package
+from r_repeat.downstream_analysis.analyze_downstream_igs import analyze_downstream_igs_methylation
 
 # Configure logging
 logging.basicConfig(

@@ -6,32 +6,43 @@ previously identified r-repeat regions, with special attention to unit structure
 It also includes analysis of upstream coding region methylation patterns.
 """
 
-from pathlib import Path
-import json
-import pandas as pd
 import pickle
 import logging
 import pysam
 import numpy as np
 import sys
+import json
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from pathlib import Path
 
-# Add the current directory to the path to ensure analyze_upstream_coding can be imported
-current_dir = str(Path(__file__).parent)
-if current_dir not in sys.path:
-    sys.path.append(current_dir)
+# Direct imports from r_repeat package
+from r_repeat.upstream_analysis.analyze_upstream_coding import analyze_upstream_coding_methylation
+from r_repeat.downstream_analysis.analyze_downstream_igs import analyze_downstream_igs_methylation
 
-# Import analyze_upstream_coding
-import analyze_upstream_coding
+# Ensure parent directory is in path for imports
+parent_dir = str(Path(__file__).parent.parent.parent)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
 
-# Import the analyze_downstream_igs module - handle module import errors gracefully
+# Try importing modules from reorganized structure first
 try:
-    import analyze_downstream_igs
+    from ..upstream_analysis.analyze_upstream_coding import analyze_upstream_coding_methylation
+    from ..downstream_analysis.analyze_downstream_igs import analyze_downstream_igs_methylation
 except ImportError:
-    # In case the file doesn't exist yet or cannot be imported
-    analyze_downstream_igs = None
-    print("Warning: analyze_downstream_igs module not found. Downstream analysis will be disabled.")
+    # Fallback to original import paths
+    try:
+        from analyze_upstream_coding import analyze_upstream_coding_methylation
+        try:
+            from analyze_downstream_igs import analyze_downstream_igs_methylation
+        except ImportError:
+            analyze_downstream_igs_methylation = None
+            print("Warning: analyze_downstream_igs module not found. Downstream analysis will be disabled.")
+    except ImportError:
+        analyze_upstream_coding_methylation = None
+        analyze_downstream_igs_methylation = None
+        print("Warning: analyze_upstream_coding module not found. Upstream and downstream analysis will be disabled.")
 
 # Configure logging
 logging.basicConfig(
@@ -949,7 +960,7 @@ def analyze_methylation(r_repeat_regions, mod_bam_path, output_dir=None, analyze
         upstream_dir.mkdir(parents=True, exist_ok=True)
         
         logger.info("Performing upstream coding region methylation analysis...")
-        upstream_results = analyze_upstream_coding.analyze_upstream_coding_methylation(
+        upstream_results = analyze_upstream_coding_methylation(
             str(data_dir / "r_repeat_methylation.pkl"),
             output_dir=upstream_dir
         )
@@ -963,24 +974,13 @@ def analyze_methylation(r_repeat_regions, mod_bam_path, output_dir=None, analyze
         downstream_dir.mkdir(parents=True, exist_ok=True)
         
         logger.info("Performing downstream IGS region methylation analysis...")
-        
-        # Check if analyze_downstream_igs module is available
-        if analyze_downstream_igs is not None:
-            # Make sure the function is available in the module
-            if hasattr(analyze_downstream_igs, 'analyze_downstream_igs_methylation'):
-                downstream_results = analyze_downstream_igs.analyze_downstream_igs_methylation(
-                    str(data_dir / "r_repeat_methylation.pkl"),
-                    output_dir=downstream_dir
-                )
+        downstream_results = analyze_downstream_igs_methylation(
+            str(data_dir / "r_repeat_methylation.pkl"),
+            output_dir=downstream_dir
+        )
                 
-                if downstream_results and 'visualizations' in downstream_results:
-                    logger.info(f"Created {len(downstream_results['visualizations'])} downstream methylation visualizations")
-            else:
-                logger.error("analyze_downstream_igs module found but analyze_downstream_igs_methylation function not found.")
-                downstream_results = fallback_downstream_analysis()
-        else:
-            # Use fallback function if module is not available
-            downstream_results = fallback_downstream_analysis()
+        if downstream_results and 'visualizations' in downstream_results:
+            logger.info(f"Created {len(downstream_results['visualizations'])} downstream methylation visualizations")
     
     return r_repeat_data, visualization_files, upstream_results, downstream_results
 
