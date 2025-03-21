@@ -1,7 +1,7 @@
 # Scripts to Analyze rDNA from Oxford Nanopore Sequencing Data
 
 Analyze the structure, methylation, variation of rDNA repeats.
-IMPORTANT: THROUGHOUT THE PROJECT, QUERY POSITION IS DEFINED IN TERMS OF THE DIRECTION OF THE ORIGINAL BASECALLED READ!
+IMPORTANT: THROUGHOUT THE PROJECT, QUERY POSITION IS DEFINED IN TERMS OF THE DIRECTION OF THE ORIGINAL BASECALLED READ EXCEPT IN R REPEAT ANALYSIS!
 
 ## Table of Contents
 
@@ -10,6 +10,8 @@ IMPORTANT: THROUGHOUT THE PROJECT, QUERY POSITION IS DEFINED IN TERMS OF THE DIR
   - [Dotplot Visualization](#dotplot-visualization)
   - [R-Repeat Analysis](#r-repeat-analysis)
   - [Methylation Analysis](#methylation-analysis)
+  - [Batch Processing](#batch-processing)
+  - [Project Organization](#project-organization)
 
 ## Installation
 
@@ -179,3 +181,32 @@ x, y = methylation_binning(
     method='threshold'            # 'average' or 'threshold'
 )
 ```
+
+### Batch Processing
+Process multiple samples in batch mode with the r-repeat analysis workflow.
+
+#### Standard Batch Processing
+Run the batch script to process multiple samples at once:
+
+```bash
+# Basic usage
+python batch_r_repeat_analyze.py --input /path/to/input/directory --output /path/to/output/directory
+
+# More options
+python batch_r_repeat_analyze.py --input /path/to/input/directory --output /path/to/output/directory \
+  --threads 4 --max-workers 2 --keep-temp
+```
+
+The input directory should contain subdirectories for each sample, with each subdirectory containing BAM files from that sample.
+
+#### Options
+- `--input` or `-i`: Directory containing sample subdirectories with BAM files (required)
+- `--output` or `-o`: Parent output directory - each sample will get a subdirectory (required)
+- `--temp` or `-t`: Directory for temporary files (default: output_dir/temp)
+- `--threads`: Number of threads to use per sample (default: 4)
+- `--max-workers`: Maximum number of samples to process in parallel (default: 1)
+- `--keep-temp`: Keep temporary files after analysis
+- `--sequential`: Process samples sequentially even if max-workers > 1
+
+#### Output Structure
+The batch script creates an organized output structure:
