@@ -195,8 +195,21 @@ def process_motif_alignments(alignment_bam):
             if identity < 0.5:
                 continue
             
+            # Instead of adding attributes directly to the alignment object,
+            # create a wrapper object with the alignment and additional information
+            alignment_info = {
+                'alignment': aln,
+                'motif_match_start': aln.query_alignment_start,
+                'motif_match_end': aln.query_alignment_end,
+                'motif_match_length': motif_alignment_len,
+                'motif_match_identity': identity,
+                'query_alignment_start': aln.query_alignment_start,
+                'query_alignment_end': aln.query_alignment_end,
+                'is_reverse': aln.is_reverse
+            }
+            
             # Store alignment - we now work with the reference orientation
-            read_alignments[read_id].append(aln)
+            read_alignments[read_id].append(alignment_info)
     
     logger.info(f"Processing motif alignments for {len(read_alignments)} r-repeat regions")
     
@@ -224,6 +237,7 @@ def correspond_units_to_regions(read_alignments, read_id_to_r_repeat):
         "unit_counts": {},
         "units_by_read": {},
         "unit_length_stats": {},
+        "motif_positions": {},  # New dictionary to store motif positions
         "problematic_units": {
             "short_units": [],
             "long_units": []
@@ -244,21 +258,47 @@ def correspond_units_to_regions(read_alignments, read_id_to_r_repeat):
             region_units = []
             if read_id not in read_alignments:
                 continue
-            for alignment in read_alignments[read_id]:
-                if alignment.query_alignment_start >= r_repeat_region['start'] and alignment.query_alignment_end <= r_repeat_region['end']:
-                    region_units.append(alignment)
+            for alignment_info in read_alignments[read_id]:
+                # Now use the stored start/end values from our wrapper object
+                if alignment_info['query_alignment_start'] >= r_repeat_region['start'] and alignment_info['query_alignment_end'] <= r_repeat_region['end']:
+                    region_units.append(alignment_info)
             if region_units:
                 # Sort units by start position
-                region_units = sorted(region_units, key=lambda a: a.query_alignment_start)
+                region_units = sorted(region_units, key=lambda a: a['query_alignment_start'])
                 r_repeat_region['units'] = region_units
+                
                 # Unit lengths are calculated by the distance between the start of the motif alignments
                 unit_lengths = []
+                unit_start_end_positions = []  # Store the start and end positions of each unit
+                motif_positions = []  # Store motif matching positions for each unit
                 has_problematic_unit = False
                 
                 if len(region_units) > 1:
                     for i in range(1, len(region_units)):
-                        unit_length = region_units[i].query_alignment_start - region_units[i-1].query_alignment_start
+                        unit_start = region_units[i-1]['query_alignment_start']
+                        unit_end = region_units[i]['query_alignment_start']  # End of previous unit is start of next unit
+                        unit_length = unit_end - unit_start
                         unit_lengths.append(unit_length)
+                        
+                        # Store unit positions
+                        unit_position = {"start": unit_start, "end": unit_end, "length": unit_length}
+                        unit_start_end_positions.append(unit_position)
+                        
+                        # Store motif match positions within the unit
+                        motif_match = {
+                            "unit_index": i-1,
+                            "motif_start": region_units[i-1]['motif_match_start'],
+                            "motif_end": region_units[i-1]['motif_match_end'],
+                            "motif_length": region_units[i-1]['motif_match_length'],
+                            "motif_identity": region_units[i-1]['motif_match_identity'],
+                            "unit_start": unit_start,
+                            "unit_end": unit_end,
+                            "unit_length": unit_length,
+                            "motif_relative_start": region_units[i-1]['motif_match_start'] - unit_start,
+                            "motif_relative_end": region_units[i-1]['motif_match_end'] - unit_start
+                        }
+                        motif_positions.append(motif_match)
+                        
                         all_unit_lengths.append(unit_length)
                         
                         # Check if this unit is too long (>1000bp) or too short (<300bp)
@@ -267,8 +307,30 @@ def correspond_units_to_regions(read_alignments, read_id_to_r_repeat):
                             read_ids_with_problematic_units.add(read_id)
                 
                 # Add the last unit length (using distance from motif start to region end)
-                last_unit_length = r_repeat_region['end'] - region_units[-1].query_alignment_start
+                last_unit_start = region_units[-1]['query_alignment_start']
+                last_unit_end = r_repeat_region['end']
+                last_unit_length = last_unit_end - last_unit_start
                 unit_lengths.append(last_unit_length)
+                
+                # Store last unit position
+                last_unit_position = {"start": last_unit_start, "end": last_unit_end, "length": last_unit_length}
+                unit_start_end_positions.append(last_unit_position)
+                
+                # Store last motif match position
+                last_motif_match = {
+                    "unit_index": len(region_units) - 1,
+                    "motif_start": region_units[-1]['motif_match_start'],
+                    "motif_end": region_units[-1]['motif_match_end'],
+                    "motif_length": region_units[-1]['motif_match_length'],
+                    "motif_identity": region_units[-1]['motif_match_identity'],
+                    "unit_start": last_unit_start,
+                    "unit_end": last_unit_end,
+                    "unit_length": last_unit_length,
+                    "motif_relative_start": region_units[-1]['motif_match_start'] - last_unit_start,
+                    "motif_relative_end": region_units[-1]['motif_match_end'] - last_unit_start
+                }
+                motif_positions.append(last_motif_match)
+                
                 all_unit_lengths.append(last_unit_length)
                 
                 # Check if the last unit is too long or too short
@@ -282,6 +344,8 @@ def correspond_units_to_regions(read_alignments, read_id_to_r_repeat):
                 r_repeat_region['has_short_unit'] = any(length < 300 for length in unit_lengths)
                 
                 r_repeat_region['unit_lengths'] = unit_lengths
+                r_repeat_region['unit_positions'] = unit_start_end_positions  # Add the positions to the region
+                r_repeat_region['motif_positions'] = motif_positions  # Add motif positions to the region
                 r_repeat_region['unit_count'] = len(region_units)
                 
                 # Only include regions without problematic units in the distribution calculations
@@ -296,6 +360,7 @@ def correspond_units_to_regions(read_alignments, read_id_to_r_repeat):
         if isinstance(r_repeat_regions, list):
             if read_id not in unit_analysis_data["units_by_read"]:
                 unit_analysis_data["units_by_read"][read_id] = []
+                unit_analysis_data["motif_positions"][read_id] = []  # Initialize motif positions for this read
             
             for i, region in enumerate(regions_list):
                 if 'unit_count' in region and 'unit_lengths' in region:
@@ -307,6 +372,19 @@ def correspond_units_to_regions(read_alignments, read_id_to_r_repeat):
                         "has_short_unit": region.get('has_short_unit', False),
                         "has_long_unit": region.get('has_long_unit', False)
                     }
+                    
+                    # Add unit positions if available
+                    if 'unit_positions' in region:
+                        region_data["unit_positions"] = region['unit_positions']
+                    
+                    # Add motif positions if available
+                    if 'motif_positions' in region:
+                        region_data["motif_positions"] = region['motif_positions']
+                        unit_analysis_data["motif_positions"][read_id].append({
+                            "region_index": i,
+                            "positions": region['motif_positions']
+                        })
+                        
                     unit_analysis_data["units_by_read"][read_id].append(region_data)
                     
                     # Track problematic units
@@ -332,6 +410,16 @@ def correspond_units_to_regions(read_alignments, read_id_to_r_repeat):
                     "has_short_unit": region.get('has_short_unit', False),
                     "has_long_unit": region.get('has_long_unit', False)
                 }
+                
+                # Add unit positions if available
+                if 'unit_positions' in region:
+                    region_data["unit_positions"] = region['unit_positions']
+                
+                # Add motif positions if available
+                if 'motif_positions' in region:
+                    region_data["motif_positions"] = region['motif_positions']
+                    unit_analysis_data["motif_positions"][read_id] = region['motif_positions']
+                    
                 unit_analysis_data["units_by_read"][read_id] = region_data
                 
                 # Track problematic units
@@ -601,18 +689,18 @@ def find_long_units(read_alignments, read_id_to_r_repeat, threshold=1000):
             region_units = []
             
             # Find alignments for this region
-            for alignment in read_alignments[read_id]:
-                if (alignment.query_alignment_start >= r_repeat_region['start'] and 
-                    alignment.query_alignment_end <= r_repeat_region['end']):
-                    region_units.append(alignment)
+            for alignment_info in read_alignments[read_id]:
+                if (alignment_info['query_alignment_start'] >= r_repeat_region['start'] and 
+                    alignment_info['query_alignment_end'] <= r_repeat_region['end']):
+                    region_units.append(alignment_info)
             
             if len(region_units) > 1:
                 # Sort units by start position
-                region_units = sorted(region_units, key=lambda a: a.query_alignment_start)
+                region_units = sorted(region_units, key=lambda a: a['query_alignment_start'])
                 
                 # Calculate unit lengths
                 for i in range(1, len(region_units)):
-                    unit_length = region_units[i].query_alignment_start - region_units[i-1].query_alignment_start
+                    unit_length = region_units[i]['query_alignment_start'] - region_units[i-1]['query_alignment_start']
                     
                     # Check if unit exceeds threshold
                     if unit_length > threshold:
@@ -622,20 +710,20 @@ def find_long_units(read_alignments, read_id_to_r_repeat, threshold=1000):
                             'region_index': region_idx,
                             'unit_index': i-1,  # 0-based index of unit
                             'unit_length': unit_length,
-                            'start': region_units[i-1].query_alignment_start,
-                            'end': region_units[i].query_alignment_start
+                            'start': region_units[i-1]['query_alignment_start'],
+                            'end': region_units[i]['query_alignment_start']
                         })
                 
                 # Check last unit
                 if len(region_units) > 0:
-                    last_unit_length = r_repeat_region['end'] - region_units[-1].query_alignment_start
+                    last_unit_length = r_repeat_region['end'] - region_units[-1]['query_alignment_start']
                     if last_unit_length > threshold:
                         long_units.append({
                             'read_id': read_id,
                             'region_index': region_idx,
                             'unit_index': len(region_units)-1,  # 0-based index of unit
                             'unit_length': last_unit_length,
-                            'start': region_units[-1].query_alignment_start,
+                            'start': region_units[-1]['query_alignment_start'],
                             'end': r_repeat_region['end']
                         })
     

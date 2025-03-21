@@ -236,6 +236,35 @@ def run_complete_analysis(bam_path, output_dir=None, keep_temp_files=False, reus
                         # Add unit lengths if available
                         if 'unit_lengths' in region:
                             region_copy['unit_lengths'] = [int(length) for length in region['unit_lengths']]
+                        
+                        # Add unit positions if available
+                        if 'unit_positions' in region:
+                            region_copy['unit_positions'] = [
+                                {
+                                    'start': int(pos['start']),
+                                    'end': int(pos['end']),
+                                    'length': int(pos['length'])
+                                }
+                                for pos in region['unit_positions']
+                            ]
+                            
+                        # Add motif positions if available
+                        if 'motif_positions' in region:
+                            region_copy['motif_positions'] = [
+                                {
+                                    'unit_index': int(pos['unit_index']),
+                                    'motif_start': int(pos['motif_start']),
+                                    'motif_end': int(pos['motif_end']),
+                                    'motif_length': int(pos['motif_length']),
+                                    'motif_identity': float(pos['motif_identity']),
+                                    'unit_start': int(pos['unit_start']),
+                                    'unit_end': int(pos['unit_end']),
+                                    'unit_length': int(pos['unit_length']),
+                                    'motif_relative_start': int(pos['motif_relative_start']),
+                                    'motif_relative_end': int(pos['motif_relative_end'])
+                                }
+                                for pos in region['motif_positions']
+                            ]
                             
                         serializable_regions[read_id].append(region_copy)
                 else:
@@ -255,6 +284,35 @@ def run_complete_analysis(bam_path, output_dir=None, keep_temp_files=False, reus
                     # Add unit lengths if available
                     if 'unit_lengths' in region:
                         region_copy['unit_lengths'] = [int(length) for length in region['unit_lengths']]
+                    
+                    # Add unit positions if available
+                    if 'unit_positions' in region:
+                        region_copy['unit_positions'] = [
+                            {
+                                'start': int(pos['start']),
+                                'end': int(pos['end']),
+                                'length': int(pos['length'])
+                            }
+                            for pos in region['unit_positions']
+                        ]
+                        
+                    # Add motif positions if available
+                    if 'motif_positions' in regions:
+                        region_copy['motif_positions'] = [
+                            {
+                                'unit_index': int(pos['unit_index']),
+                                'motif_start': int(pos['motif_start']),
+                                'motif_end': int(pos['motif_end']),
+                                'motif_length': int(pos['motif_length']),
+                                'motif_identity': float(pos['motif_identity']),
+                                'unit_start': int(pos['unit_start']),
+                                'unit_end': int(pos['unit_end']),
+                                'unit_length': int(pos['unit_length']),
+                                'motif_relative_start': int(pos['motif_relative_start']),
+                                'motif_relative_end': int(pos['motif_relative_end'])
+                            }
+                            for pos in regions['motif_positions']
+                        ]
                         
                     serializable_regions[read_id] = region_copy
             
@@ -307,6 +365,17 @@ def run_complete_analysis(bam_path, output_dir=None, keep_temp_files=False, reus
                         # Add unit lengths if available
                         if 'unit_lengths' in region:
                             region_copy['unit_lengths'] = [int(length) for length in region['unit_lengths']]
+                        
+                        # Add unit positions if available
+                        if 'unit_positions' in region:
+                            region_copy['unit_positions'] = [
+                                {
+                                    'start': int(pos['start']),
+                                    'end': int(pos['end']),
+                                    'length': int(pos['length'])
+                                }
+                                for pos in region['unit_positions']
+                            ]
                             
                         serializable_regions[read_id] = region_copy
                     
